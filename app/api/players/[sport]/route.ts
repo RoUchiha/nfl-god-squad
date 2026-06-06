@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { Sport, PlayersResponse, HistoricalTeam, Era } from '@/lib/types';
-import { ERAS_BY_SPORT } from '@/lib/constants';
+import type { Sport, PlayersResponse, HistoricalTeam } from '@/lib/types';
+import { generateTeamEras } from '@/lib/constants';
 import { MLB_TEAMS, fetchMLBPlayers } from '@/lib/sports/mlb';
 import { NHL_TEAMS, fetchNHLPlayers } from '@/lib/sports/nhl';
 import { NBA_TEAMS, fetchNBAPlayers } from '@/lib/sports/nba';
@@ -13,7 +13,7 @@ const ParamsSchema = z.object({
 
 const QuerySchema = z.object({
   teamId: z.string().min(1).max(20).regex(/^[a-zA-Z0-9]+$/),
-  eraId: z.string().min(1).max(40).regex(/^[a-zA-Z0-9-]+$/),
+  eraId: z.string().min(1).max(50).regex(/^[a-zA-Z0-9-]+$/),
 });
 
 const TEAMS_BY_SPORT: Record<Sport, HistoricalTeam[]> = {
@@ -27,13 +27,11 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { sport: string } }
 ) {
-  // Validate route param
   const routeParsed = ParamsSchema.safeParse(params);
   if (!routeParsed.success) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 });
   }
 
-  // Validate query params
   const { searchParams } = new URL(req.url);
   const queryParsed = QuerySchema.safeParse({
     teamId: searchParams.get('teamId') ?? '',
@@ -47,15 +45,16 @@ export async function GET(
   const sport = routeParsed.data.sport as Sport;
   const { teamId, eraId } = queryParsed.data;
 
-  // Look up team and era from our own data (never trust raw IDs to reach external APIs)
   const teams = TEAMS_BY_SPORT[sport];
-  const eras = ERAS_BY_SPORT[sport];
-
   const team = teams.find(t => t.id === teamId);
-  const era = eras.find(e => e.id === eraId);
+  if (!team) {
+    return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+  }
 
-  if (!team || !era) {
-    return NextResponse.json({ error: 'Team or era not found' }, { status: 404 });
+  // Reconstruct era from team's generated era list — never trust raw year from URL
+  const era = generateTeamEras(team).find(e => e.id === eraId);
+  if (!era) {
+    return NextResponse.json({ error: 'Era not found for this team' }, { status: 404 });
   }
 
   try {

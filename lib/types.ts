@@ -10,6 +10,7 @@ export interface Era {
   startYear: number;
   endYear: number;
   sport: Sport;
+  teamId: string;
   description: string;
 }
 

@@ -176,16 +176,18 @@ export default function GameContainer() {
     setIsLoadingEra(true);
     try {
       let newTeam = team;
+      let newEra = era;
       for (let i = 0; i < 5; i++) {
         const res = await fetch(`/api/era/${sport}`);
         const data: EraResponse = await res.json();
-        if (data.team.id !== team?.id) { newTeam = data.team; break; }
+        if (data.team.id !== team?.id) { newTeam = data.team; newEra = data.era; break; }
       }
       if (newTeam && newTeam.id !== team?.id) {
         setTeam(newTeam);
+        setEra(newEra);
         setSlots(prev => prev.map(s => ({ ...s, player: null })));
         setJustPlacedSlotId(null);
-        await loadPlayers(sport, newTeam.id, era.id);
+        await loadPlayers(sport, newTeam.id, newEra.id);
       }
     } finally {
       setIsLoadingEra(false);
