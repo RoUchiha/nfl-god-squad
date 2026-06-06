@@ -184,25 +184,119 @@ function weightedAverage(scores: number[], weights?: number[]): number {
   return scores.reduce((acc, s, i) => acc + s * (weights[i] ?? 1), 0) / totalWeight;
 }
 
-function chemistryBonus(players: Player[], sport: Sport): number {
-  // Known dynasty cores get a bonus
+// ─── Historic duo bonus ───────────────────────────────────────────────────────
+const HISTORIC_DUOS: [string, string, number][] = [
+  // NBA
+  ['Michael Jordan', 'Scottie Pippen', 10],
+  ['Magic Johnson', 'Kareem Abdul-Jabbar', 9],
+  ["Shaquille O'Neal", 'Kobe Bryant', 8],
+  ['LeBron James', 'Dwyane Wade', 7],
+  ['LeBron James', 'Anthony Davis', 7],
+  ['Stephen Curry', 'Klay Thompson', 8],
+  ['Stephen Curry', 'Draymond Green', 6],
+  ['Kevin Durant', 'Stephen Curry', 9],
+  ['Larry Bird', 'Kevin McHale', 7],
+  ['Tim Duncan', 'Tony Parker', 7],
+  ['Tim Duncan', 'Manu Ginobili', 6],
+  ['Hakeem Olajuwon', 'Clyde Drexler', 7],
+  // NFL
+  ['Tom Brady', 'Rob Gronkowski', 9],
+  ['Tom Brady', 'Randy Moss', 9],
+  ['Joe Montana', 'Jerry Rice', 10],
+  ['Peyton Manning', 'Marvin Harrison', 8],
+  ['Aaron Rodgers', 'Davante Adams', 7],
+  ['Patrick Mahomes', 'Travis Kelce', 8],
+  ['Troy Aikman', 'Michael Irvin', 7],
+  ['Dan Marino', 'Mark Clayton', 6],
+  ['Lawrence Taylor', 'Carl Banks', 6],
+  // MLB
+  ['Babe Ruth', 'Lou Gehrig', 10],
+  ['Mickey Mantle', 'Whitey Ford', 8],
+  ['Derek Jeter', 'Mariano Rivera', 9],
+  ['Willie Mays', 'Willie McCovey', 7],
+  ['Hank Aaron', 'Eddie Mathews', 8],
+  ['Greg Maddux', 'Tom Glavine', 8],
+  ['Mike Piazza', 'Tom Glavine', 5],
+  // NHL
+  ['Wayne Gretzky', 'Mark Messier', 10],
+  ['Wayne Gretzky', 'Jari Kurri', 9],
+  ['Mario Lemieux', 'Jaromir Jagr', 9],
+  ['Sidney Crosby', 'Evgeni Malkin', 8],
+  ['Patrick Roy', 'Joe Sakic', 8],
+  ['Steve Yzerman', 'Nicklas Lidstrom', 8],
+  ['Bobby Orr', 'Phil Esposito', 9],
+];
+
+// ─── Historic rival pairings (players from rival franchises) ─────────────────
+// Two rival-team players on same squad get a "chip on shoulder" bonus
+const HISTORIC_RIVALS: [string, string, number][] = [
+  // NBA rivals (Celtics vs Lakers greats)
+  ['Larry Bird', 'Magic Johnson', 5],
+  ['Larry Bird', 'Kareem Abdul-Jabbar', 4],
+  ['Bill Russell', 'Wilt Chamberlain', 5],
+  // NFL division rivals
+  ['Peyton Manning', 'Ray Lewis', 4],
+  ['Tom Brady', 'Peyton Manning', 5],
+  // MLB
+  ['Babe Ruth', 'Ty Cobb', 4],
+  ['Derek Jeter', 'Manny Ramirez', 4],
+  // NHL
+  ['Wayne Gretzky', 'Mario Lemieux', 5],
+  ['Patrick Roy', 'Chris Chelios', 4],
+];
+
+function duoAndRivalBonus(players: Player[]): number {
   const names = players.map(p => p.name);
-  const duos: [string, string, number][] = [
-    ['Michael Jordan', 'Scottie Pippen', 8],
-    ['Magic Johnson', 'Kareem Abdul-Jabbar', 7],
-    ['Shaquille O\'Neal', 'Kobe Bryant', 6],
-    ['LeBron James', 'Dwyane Wade', 6],
-    ['Stephen Curry', 'Klay Thompson', 7],
-    ['Tom Brady', 'Rob Gronkowski', 8],
-    ['Joe Montana', 'Jerry Rice', 9],
-    ['Babe Ruth', 'Lou Gehrig', 10],
-    ['Wayne Gretzky', 'Mark Messier', 9],
-    ['Mario Lemieux', 'Jaromir Jagr', 8],
-  ];
-  let bonus = 0;
-  for (const [a, b, pts] of duos) {
-    if (names.includes(a) && names.includes(b)) bonus = Math.max(bonus, pts);
+  let duoBonus = 0;
+  for (const [a, b, pts] of HISTORIC_DUOS) {
+    if (names.includes(a) && names.includes(b)) duoBonus = Math.max(duoBonus, pts);
   }
+  let rivalBonus = 0;
+  for (const [a, b, pts] of HISTORIC_RIVALS) {
+    if (names.includes(a) && names.includes(b)) rivalBonus += pts * 0.5; // partial — rivals clash
+  }
+  return duoBonus + rivalBonus;
+}
+
+// ─── Era chemistry bonus ──────────────────────────────────────────────────────
+function eraChemistryBonus(players: Player[]): number {
+  const eraIds = players.map(p => p.eraId).filter((e): e is string => Boolean(e));
+  if (eraIds.length < 3) return 0;
+  const unique = new Set(eraIds);
+  if (unique.size === 1) return 8;      // all from exact same era
+  if (unique.size === 2) return 3;      // two eras — some cohesion
+  return 0;
+}
+
+// ─── Team chemistry bonus ─────────────────────────────────────────────────────
+function teamChemistryBonus(players: Player[]): number {
+  const teamIds = players.map(p => p.teamId).filter((t): t is string => Boolean(t));
+  if (teamIds.length < 2) return 0;
+  const counts: Record<string, number> = {};
+  for (const t of teamIds) counts[t] = (counts[t] ?? 0) + 1;
+  const max = Math.max(...Object.values(counts));
+  if (max >= 5) return 10;
+  if (max >= 3) return 5;
+  if (max >= 2) return 2;
+  return 0;
+}
+
+// ─── Physical composition bonus ───────────────────────────────────────────────
+function physicalBonus(players: Player[], sport: Sport): number {
+  if (sport !== 'nba') return 0;
+
+  // Approximate height by position
+  const heightMap: Record<string, number> = { C: 84, PF: 81, SF: 79, SG: 76, PG: 73 }; // inches
+  const heights = players.map(p => heightMap[p.position] ?? 77);
+  const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
+
+  const centers = players.filter(p => p.position === 'C').length;
+  const bigs    = players.filter(p => p.position === 'C' || p.position === 'PF').length;
+
+  let bonus = 0;
+  if (centers >= 2) bonus += 8;          // twin towers
+  else if (bigs >= 3) bonus += 5;        // big lineup
+  if (avgHeight >= 80) bonus += 3;       // tall team overall
   return bonus;
 }
 
@@ -244,17 +338,21 @@ export function computeTeamGSPR(
     ? (filledRequired.length / required.length) * 100
     : 80;
 
-  const chemistry = chemistryBonus(players, sport);
+  const duoRival   = duoAndRivalBonus(players);
+  const eraChem    = eraChemistryBonus(players);
+  const teamChem   = teamChemistryBonus(players);
+  const physical   = physicalBonus(players, sport);
+  const totalBonus = duoRival + eraChem + teamChem + physical;
 
   const w = SPORT_WEIGHTS[sport];
   const raw = (
     offenseScore * w.offense +
     defenseScore * w.defense +
     depthScore * w.depth +
-    chemistry * 0.05
+    totalBonus * 0.06
   );
 
-  // Scale to 0–1000 (raw is already 0–100 weighted, multiply by 10)
+  // Scale to 0–1000
   const gspr = Math.round(clamp(raw * 10, 0, 1000));
 
   const tier = gspr >= 950 ? 'god'
@@ -263,12 +361,15 @@ export function computeTeamGSPR(
     : gspr >= 500 ? 'good'
     : 'average';
 
-  const breakdown: string[] = [
+  const breakdownParts: string[] = [
     `Offense: ${Math.round(offenseScore)}/100`,
     `Defense: ${Math.round(defenseScore)}/100`,
     `Depth: ${Math.round(depthScore)}/100`,
-    ...(chemistry > 0 ? [`Chemistry Bonus: +${chemistry}`] : []),
   ];
+  if (duoRival > 0)  breakdownParts.push(`Historic Duo/Rivalry: +${Math.round(duoRival)}`);
+  if (eraChem > 0)   breakdownParts.push(`Era Chemistry: +${eraChem}`);
+  if (teamChem > 0)  breakdownParts.push(`Team Chemistry: +${teamChem}`);
+  if (physical > 0)  breakdownParts.push(`Physical Edge: +${physical}`);
 
-  return { gspr, offenseScore, defenseScore, depthScore, chemistryBonus: chemistry, tier, breakdown };
+  return { gspr, offenseScore, defenseScore, depthScore, chemistryBonus: totalBonus, tier, breakdown: breakdownParts };
 }

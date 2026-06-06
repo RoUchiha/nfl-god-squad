@@ -99,7 +99,11 @@ export async function fetchNFLPlayers(team: HistoricalTeam, era: Era): Promise<P
 
   if (players.length < 8) return generateFallbackNFLPlayers(team, era);
 
-  return players.sort((a, b) => b.playerScore - a.playerScore).slice(0, 25);
+  // Attach era/team context for bonus calculation
+  for (const p of players) { p.eraId = era.id; p.teamId = team.id; }
+
+  // Return starting lineup: top player per key position group, max 20
+  return dedupeToStarters(players);
 }
 
 function nflPositionMap(pos: string): { position: Player['position']; group: Player['positionGroup'] } {
@@ -160,6 +164,19 @@ function extractNFLStats(position: Player['position'], stats: Record<string, num
   }
 }
 
+// Keep only one starter per position slot up to a starting-lineup count
+function dedupeToStarters(players: Player[]): Player[] {
+  const counts: Record<string, number> = {};
+  const maxPerPos: Record<string, number> = { QB: 1, RB: 2, WR: 3, TE: 1, K: 1, DE: 2, DT: 2, LB: 3, CB: 2, S: 2 };
+  const result: Player[] = [];
+  for (const p of players.sort((a, b) => b.playerScore - a.playerScore)) {
+    const pos = String(p.position);
+    counts[pos] = (counts[pos] ?? 0) + 1;
+    if (counts[pos] <= (maxPerPos[pos] ?? 2)) result.push(p);
+  }
+  return result;
+}
+
 const NFL_FIRST = ['Dak', 'Lamar', 'Josh', 'Patrick', 'Justin', 'Jalen', 'Trevor', 'Tua', 'Sam', 'Derek', 'Marcus', 'Tyreek', 'Davante', 'Stefon', 'Travis', 'Dalton', 'Micah', 'Myles', 'Von', 'Aaron', 'Richard', 'Derrick', 'Christian', 'Nick', 'Roquan'];
 const NFL_LAST = ['Smith', 'Jackson', 'Allen', 'Mahomes', 'Herbert', 'Hurts', 'Lawrence', 'Tagovailoa', 'Darnold', 'Carr', 'Mariota', 'Hill', 'Adams', 'Diggs', 'Kelce', 'Schultz', 'Parsons', 'Garrett', 'Miller', 'Donald', 'Sherman', 'Henry', 'McCaffrey', 'Chubb', 'Walker'];
 
@@ -205,6 +222,8 @@ function generateFallbackNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
       name: nflFakeName(s),
       position: pos,
       positionGroup: group,
+      eraId: era.id,
+      teamId: team.id,
       yearsWithTeam: `${era.startYear}–${era.endYear}`,
       stats,
       playerScore: 0,

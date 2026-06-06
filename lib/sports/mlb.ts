@@ -79,17 +79,15 @@ function mlbPositionToType(pos: string, type: string): { position: Player['posit
 }
 
 export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<Player[]> {
-  const players: Player[] = [];
   const midYear = Math.round((era.startYear + era.endYear) / 2);
-  const yearsToCheck = [era.startYear, midYear, era.endYear].filter((v, i, a) => a.indexOf(v) === i);
+  const yearsToCheck = Array.from(new Set([era.startYear, midYear, era.endYear]))
+    .filter(y => y >= 1876 && y <= 2024);
 
-  const seenIds = new Set<number>();
+  // Track each player's BEST season (by playerScore) across years in the era
+  const bestByName = new Map<string, Player>();
 
   for (const year of yearsToCheck) {
-    if (year < 1876 || year > 2024) continue;
-
     try {
-      // Fetch roster
       const rosterRes = await fetch(
         `${MLB_API}/teams/${team.id}/roster?season=${year}&rosterType=active`,
         { next: { revalidate: 3600 } }
@@ -101,8 +99,6 @@ export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<P
 
       for (const rosterPlayer of roster.slice(0, 40)) {
         const pid = rosterPlayer.person.id;
-        if (seenIds.has(pid)) continue;
-
         try {
           const statsRes = await fetch(
             `${MLB_API}/people/${pid}/stats?stats=season&season=${year}&group=hitting,pitching`,
@@ -115,7 +111,7 @@ export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<P
             statsData.stats ?? [];
 
           let playerStats: Player['stats'] = {};
-          let isPitcher = rosterPlayer.position.type === 'Pitcher';
+          const isPitcher = rosterPlayer.position.type === 'Pitcher';
 
           for (const group of statGroups) {
             const split = group.splits?.[0];
@@ -146,7 +142,6 @@ export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<P
             }
           }
 
-          // Skip if no meaningful stats
           const hasStats = isPitcher
             ? playerStats.era !== undefined
             : playerStats.ops !== undefined || playerStats.battingAvg !== undefined;
@@ -157,7 +152,6 @@ export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<P
             rosterPlayer.position.type
           );
 
-          // Classify pitchers more specifically by saves
           let finalPosition = position;
           if (isPitcher) {
             if ((playerStats.saves ?? 0) > 15) finalPosition = 'CL';
@@ -170,25 +164,33 @@ export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<P
             name: rosterPlayer.person.fullName,
             position: finalPosition,
             positionGroup: group,
+            eraId: era.id,
+            teamId: team.id,
+            bestSeasonYear: year,
             yearsWithTeam: `${year}`,
             stats: playerStats,
             playerScore: 0,
-            isLegend: false,
-            isAllStar: false,
           };
           p.playerScore = computePlayerScore(p, 'mlb');
-          players.push(p);
-          seenIds.add(pid);
+
+          // Keep only the player's best season
+          const existing = bestByName.get(p.name);
+          if (!existing || p.playerScore > existing.playerScore) {
+            bestByName.set(p.name, p);
+          }
         } catch {
-          // Skip individual player errors
+          // skip individual player errors
         }
       }
     } catch {
-      // Skip year fetch errors
+      // skip year errors
     }
   }
 
-  // Sort by player score, deduplicate by name, return top 25
-  const unique = Array.from(new Map(players.map(p => [p.name, p])).values());
-  return unique.sort((a, b) => b.playerScore - a.playerScore).slice(0, 25);
+  const all = Array.from(bestByName.values()).sort((a, b) => b.playerScore - a.playerScore);
+
+  // Starting lineup: top 9 batters + top 3 pitchers (SP, RP/CL)
+  const batters  = all.filter(p => p.positionGroup === 'offense').slice(0, 9);
+  const pitchers = all.filter(p => p.positionGroup === 'pitching').slice(0, 4);
+  return [...batters, ...pitchers];
 }

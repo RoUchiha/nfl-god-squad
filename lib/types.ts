@@ -91,6 +91,9 @@ export interface Player {
   name: string;
   position: Position;
   positionGroup: PositionGroup;
+  eraId?: string;   // for era-chemistry bonus
+  teamId?: string;  // for team-chemistry bonus
+  bestSeasonYear?: number; // year of the best season shown
   yearsWithTeam: string;
   stats: PlayerStats;
   playerScore: number;       // individual era-adjusted score 0–100

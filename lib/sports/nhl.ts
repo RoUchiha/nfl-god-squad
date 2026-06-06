@@ -71,6 +71,8 @@ export async function fetchNHLPlayers(team: HistoricalTeam, era: Era): Promise<P
           name: `${s.firstName.default} ${s.lastName.default}`,
           position,
           positionGroup: group,
+          eraId: era.id,
+          teamId: team.id,
           yearsWithTeam: `${era.startYear}–${era.endYear}`,
           stats: {
             goals: s.goals,
@@ -92,6 +94,8 @@ export async function fetchNHLPlayers(team: HistoricalTeam, era: Era): Promise<P
           name: `${g.firstName.default} ${g.lastName.default}`,
           position: 'G_NHL',
           positionGroup: 'goalie',
+          eraId: era.id,
+          teamId: team.id,
           yearsWithTeam: `${era.startYear}–${era.endYear}`,
           stats: {
             savePct: g.savePercentage,
@@ -107,11 +111,14 @@ export async function fetchNHLPlayers(team: HistoricalTeam, era: Era): Promise<P
     // Fallback handled below
   }
 
-  if (players.length === 0) {
-    return generateFallbackNHLPlayers(team, era);
-  }
+  if (players.length === 0) return generateFallbackNHLPlayers(team, era);
 
-  return players.sort((a, b) => b.playerScore - a.playerScore).slice(0, 25);
+  // Starting lineup: top 2 forward lines (6F) + top D pair (4D) + 2 goalies = 12
+  const sorted = players.sort((a, b) => b.playerScore - a.playerScore);
+  const forwards = sorted.filter(p => p.positionGroup === 'offense').slice(0, 6);
+  const defense  = sorted.filter(p => p.positionGroup === 'defense').slice(0, 4);
+  const goalies  = sorted.filter(p => p.positionGroup === 'goalie').slice(0, 2);
+  return [...forwards, ...defense, ...goalies];
 }
 
 const NHL_FIRST = ['Connor', 'Nathan', 'Auston', 'David', 'Sidney', 'Alex', 'Leon', 'Nikita', 'Andrei', 'Mark', 'Elias', 'Mitch', 'Sebastian', 'Brady', 'Brayden', 'John', 'Patrice', 'Claude', 'Erik', 'Victor'];
@@ -149,6 +156,8 @@ function generateFallbackNHLPlayers(team: HistoricalTeam, era: Era): Player[] {
       name: nhlFakeName(s),
       position: pos,
       positionGroup: group,
+      eraId: era.id,
+      teamId: team.id,
       yearsWithTeam: `${era.startYear}–${era.endYear}`,
       stats: group === 'goalie'
         ? { savePct: 0.905 + (s % 20) / 1000, goalsAgainstAvg: 2.5 + (s % 8) / 10 }
