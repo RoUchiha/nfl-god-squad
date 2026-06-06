@@ -58,9 +58,13 @@ export default function PowerMeter({ gspr, slots, sport, mode }: Props) {
             <SubBar label="Defense" value={teamPower.defenseScore} color="#3b82f6" />
           )}
           <SubBar label="Depth" value={teamPower.depthScore} color="#6b7280" />
-          {teamPower.chemistryBonus > 0 && (
-            <div className="text-xs text-yellow-500 font-medium">
-              ✨ Chemistry bonus: +{teamPower.chemistryBonus}
+          {teamPower.breakdown.length > 3 && (
+            <div className="mt-2 space-y-0.5">
+              {teamPower.breakdown.slice(3).map((label, i) => (
+                <div key={i} className="text-[11px] text-yellow-400 font-medium leading-snug">
+                  {label}
+                </div>
+              ))}
             </div>
           )}
         </div>

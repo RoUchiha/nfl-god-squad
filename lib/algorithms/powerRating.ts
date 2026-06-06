@@ -185,119 +185,232 @@ function weightedAverage(scores: number[], weights?: number[]): number {
 }
 
 // ─── Historic duo bonus ───────────────────────────────────────────────────────
-const HISTORIC_DUOS: [string, string, number][] = [
+const HISTORIC_DUOS: [string, string, number, string][] = [
   // NBA
-  ['Michael Jordan', 'Scottie Pippen', 10],
-  ['Magic Johnson', 'Kareem Abdul-Jabbar', 9],
-  ["Shaquille O'Neal", 'Kobe Bryant', 8],
-  ['LeBron James', 'Dwyane Wade', 7],
-  ['LeBron James', 'Anthony Davis', 7],
-  ['Stephen Curry', 'Klay Thompson', 8],
-  ['Stephen Curry', 'Draymond Green', 6],
-  ['Kevin Durant', 'Stephen Curry', 9],
-  ['Larry Bird', 'Kevin McHale', 7],
-  ['Tim Duncan', 'Tony Parker', 7],
-  ['Tim Duncan', 'Manu Ginobili', 6],
-  ['Hakeem Olajuwon', 'Clyde Drexler', 7],
+  ['Michael Jordan',      'Scottie Pippen',      10, '🐐 Jordan & Pippen — Greatest Duo Ever'],
+  ['Magic Johnson',       'Kareem Abdul-Jabbar',  9, '✨ Magic & Kareem — Showtime'],
+  ["Shaquille O'Neal",    'Kobe Bryant',           8, '🔥 Shaq & Kobe — Three-Peat'],
+  ['LeBron James',        'Dwyane Wade',           7, '👑 LeBron & Wade — Heat Big Three'],
+  ['LeBron James',        'Anthony Davis',         7, '💪 LeBron & AD — Lake Show'],
+  ['LeBron James',        'Kyrie Irving',          8, '🏆 LeBron & Kyrie — Cavs Champions'],
+  ['Stephen Curry',       'Klay Thompson',         8, '🎯 Curry & Klay — Splash Brothers'],
+  ['Stephen Curry',       'Draymond Green',        6, '🧠 Curry & Draymond — Warriors IQ'],
+  ['Kevin Durant',        'Stephen Curry',         9, '⚡ KD & Curry — Unstoppable Force'],
+  ['Larry Bird',          'Kevin McHale',          7, '☘️ Bird & McHale — Celtics Frontcourt'],
+  ['Larry Bird',          'Robert Parish',         6, '☘️ Bird & Parish — Celtics Big Three'],
+  ['Tim Duncan',          'Tony Parker',           7, '🪨 Duncan & Parker — Spurs Dynasty'],
+  ['Tim Duncan',          'Manu Ginobili',         6, '🪨 Duncan & Ginobili — Spurs Big Three'],
+  ['Tony Parker',         'Manu Ginobili',         6, '🇫🇷 Parker & Ginobili — International Flair'],
+  ['Hakeem Olajuwon',     'Clyde Drexler',         7, '🚀 Hakeem & Clyde — Dream Team'],
+  ['Isiah Thomas',        'Joe Dumars',            7, '😈 Isiah & Dumars — Bad Boys Backcourt'],
+  ['Kevin Garnett',       'Paul Pierce',           7, '☘️ KG & Pierce — Boston Revived'],
+  ['Kevin Garnett',       'Ray Allen',             6, '☘️ KG & Ray Allen — Banner 17'],
+  ['Giannis Antetokounmpo','Khris Middleton',      7, '🦌 Giannis & Middleton — Bucks Champions'],
+  ['Nikola Jokic',        'Jamal Murray',          7, '⛏️ Jokic & Murray — Mile High Magic'],
+  ['Kawhi Leonard',       'Paul George',           7, '🦞 Kawhi & PG — Clippers Threat'],
+  ['Karl Malone',         'John Stockton',         9, '📮 Malone & Stockton — Mailman Express'],
+  ['Charles Barkley',     'Kevin Johnson',         6, '🌵 Barkley & KJ — Suns Machine'],
+  ['Patrick Ewing',       'Charles Oakley',        5, '🗽 Ewing & Oakley — Knicks Bruisers'],
   // NFL
-  ['Tom Brady', 'Rob Gronkowski', 9],
-  ['Tom Brady', 'Randy Moss', 9],
-  ['Joe Montana', 'Jerry Rice', 10],
-  ['Peyton Manning', 'Marvin Harrison', 8],
-  ['Aaron Rodgers', 'Davante Adams', 7],
-  ['Patrick Mahomes', 'Travis Kelce', 8],
-  ['Troy Aikman', 'Michael Irvin', 7],
-  ['Dan Marino', 'Mark Clayton', 6],
-  ['Lawrence Taylor', 'Carl Banks', 6],
+  ['Tom Brady',           'Rob Gronkowski',        9, '🏈 Brady & Gronk — Unstoppable'],
+  ['Tom Brady',           'Randy Moss',            9, '🏈 Brady & Moss — Record Breakers'],
+  ['Joe Montana',         'Jerry Rice',            10, '🐐 Montana & Rice — GOAT Connection'],
+  ['Peyton Manning',      'Marvin Harrison',       8, '🏹 Manning & Harrison — Precision'],
+  ['Peyton Manning',      'Reggie Wayne',          7, '🏹 Manning & Wayne — AFC Dominance'],
+  ['Aaron Rodgers',       'Davante Adams',         7, '🎯 Rodgers & Adams — Fade Route Kings'],
+  ['Aaron Rodgers',       'Jordy Nelson',          6, '💛 Rodgers & Jordy — Packer Magic'],
+  ['Patrick Mahomes',     'Travis Kelce',          8, '⚡ Mahomes & Kelce — Dynasty Duo'],
+  ['Troy Aikman',         'Michael Irvin',         7, '⭐ Aikman & Irvin — Cowboys WR'],
+  ['Dan Marino',          'Mark Clayton',          6, '🌴 Marino & Clayton — Miami Air'],
+  ['Lawrence Taylor',     'Carl Banks',            6, '😤 LT & Banks — Giants Defense'],
+  ['Emmitt Smith',        'Michael Irvin',         6, '⭐ Smith & Irvin — Cowboys Offense'],
+  ['Barry Sanders',       'Herman Moore',          6, '🦁 Sanders & Moore — Lions Magic'],
+  ['Steve Young',         'Jerry Rice',            8, '🌉 Young & Rice — 49ers Reload'],
+  ['John Elway',          'Shannon Sharpe',        6, '🏔️ Elway & Sharpe — Broncos Champions'],
   // MLB
-  ['Babe Ruth', 'Lou Gehrig', 10],
-  ['Mickey Mantle', 'Whitey Ford', 8],
-  ['Derek Jeter', 'Mariano Rivera', 9],
-  ['Willie Mays', 'Willie McCovey', 7],
-  ['Hank Aaron', 'Eddie Mathews', 8],
-  ['Greg Maddux', 'Tom Glavine', 8],
-  ['Mike Piazza', 'Tom Glavine', 5],
+  ['Babe Ruth',           'Lou Gehrig',            10, '⚾ Ruth & Gehrig — Murderers Row'],
+  ['Mickey Mantle',       'Whitey Ford',           8, '⚾ Mantle & Ford — Yankee Dynasty'],
+  ['Derek Jeter',         'Mariano Rivera',        9, '⚾ Jeter & Mo — Core Four'],
+  ['Willie Mays',         'Willie McCovey',        7, '⚾ Mays & McCovey — Giants Power'],
+  ['Hank Aaron',          'Eddie Mathews',         8, '⚾ Aaron & Mathews — Braves Thunder'],
+  ['Greg Maddux',         'Tom Glavine',           8, '⚾ Maddux & Glavine — Braves Rotation'],
+  ['Ken Griffey Jr.',     'Randy Johnson',         7, '⚾ Griffey & Big Unit — Seattle Legends'],
+  ['Albert Pujols',       'Jim Edmonds',           6, '⚾ Pujols & Edmonds — Cards Machine'],
+  ['Pedro Martinez',      'Manny Ramirez',         7, '⚾ Pedro & Manny — Sox World Series'],
+  ['David Ortiz',         'Manny Ramirez',         7, '⚾ Ortiz & Manny — Boston Clutch'],
   // NHL
-  ['Wayne Gretzky', 'Mark Messier', 10],
-  ['Wayne Gretzky', 'Jari Kurri', 9],
-  ['Mario Lemieux', 'Jaromir Jagr', 9],
-  ['Sidney Crosby', 'Evgeni Malkin', 8],
-  ['Patrick Roy', 'Joe Sakic', 8],
-  ['Steve Yzerman', 'Nicklas Lidstrom', 8],
-  ['Bobby Orr', 'Phil Esposito', 9],
+  ['Wayne Gretzky',       'Mark Messier',          10, '🏒 Gretzky & Messier — Oilers Dynasty'],
+  ['Wayne Gretzky',       'Jari Kurri',             9, '🏒 Gretzky & Kurri — Scoring Machine'],
+  ['Mario Lemieux',       'Jaromir Jagr',           9, '🏒 Lemieux & Jagr — Penguins Glory'],
+  ['Sidney Crosby',       'Evgeni Malkin',          8, '🏒 Crosby & Malkin — Double Threat'],
+  ['Sidney Crosby',       'Marc-Andre Fleury',      7, '🏒 Crosby & Fleury — Penguins Core'],
+  ['Patrick Roy',         'Joe Sakic',              8, '🏒 Roy & Sakic — Avs Champions'],
+  ['Steve Yzerman',       'Nicklas Lidstrom',       8, '🏒 Yzerman & Lidstrom — Wings Dynasty'],
+  ['Bobby Orr',           'Phil Esposito',          9, '🏒 Orr & Esposito — Bruins Gold'],
+  ['Gordie Howe',         'Alex Delvecchio',        7, '🏒 Howe & Delvecchio — Wings Classic'],
 ];
 
-// ─── Historic rival pairings (players from rival franchises) ─────────────────
-// Two rival-team players on same squad get a "chip on shoulder" bonus
-const HISTORIC_RIVALS: [string, string, number][] = [
-  // NBA rivals (Celtics vs Lakers greats)
-  ['Larry Bird', 'Magic Johnson', 5],
-  ['Larry Bird', 'Kareem Abdul-Jabbar', 4],
-  ['Bill Russell', 'Wilt Chamberlain', 5],
-  // NFL division rivals
-  ['Peyton Manning', 'Ray Lewis', 4],
-  ['Tom Brady', 'Peyton Manning', 5],
+// ─── Historic rival pairings ──────────────────────────────────────────────────
+const HISTORIC_RIVALS: [string, string, number, string][] = [
+  // NBA
+  ['Larry Bird',          'Magic Johnson',       5, '🔥 Bird vs Magic — Ultimate Rivals'],
+  ['Larry Bird',          'Kareem Abdul-Jabbar', 4, '🔥 Bird vs Kareem — Old-School Clash'],
+  ['Bill Russell',        'Wilt Chamberlain',    5, '🔥 Russell vs Wilt — Centers Rivalry'],
+  ['Michael Jordan',      'Isiah Thomas',        4, '🔥 Jordan vs Isiah — Bad Boys vs Bull'],
+  ['LeBron James',        'Kobe Bryant',         4, '🔥 LeBron vs Kobe — The Debate'],
+  ['Stephen Curry',       'LeBron James',        4, '🔥 Curry vs LeBron — Finals Rivals'],
+  // NFL
+  ['Peyton Manning',      'Ray Lewis',           4, '🔥 Manning vs Lewis — Rivals'],
+  ['Tom Brady',           'Peyton Manning',      5, '🔥 Brady vs Manning — AFC Legends'],
+  ['Tom Brady',           'Aaron Rodgers',       4, '🔥 Brady vs Rodgers — QB Debate'],
+  ['Jerry Rice',          'Deion Sanders',       4, '🔥 Rice vs Prime Time'],
   // MLB
-  ['Babe Ruth', 'Ty Cobb', 4],
-  ['Derek Jeter', 'Manny Ramirez', 4],
+  ['Babe Ruth',           'Ty Cobb',             4, '🔥 Ruth vs Cobb — Era Rivals'],
+  ['Derek Jeter',         'Manny Ramirez',       4, '🔥 Jeter vs Manny — Sox/Yanks'],
+  ['Pedro Martinez',      'Roger Clemens',       4, '🔥 Pedro vs Clemens — Ace Rivals'],
   // NHL
-  ['Wayne Gretzky', 'Mario Lemieux', 5],
-  ['Patrick Roy', 'Chris Chelios', 4],
+  ['Wayne Gretzky',       'Mario Lemieux',       5, '🔥 Gretzky vs Lemieux — GOAT Debate'],
+  ['Patrick Roy',         'Chris Chelios',       4, '🔥 Roy vs Chelios — Classic Clash'],
+  ['Sidney Crosby',       'Alex Ovechkin',       5, '🔥 Crosby vs Ovechkin — Modern Rivals'],
 ];
 
-function duoAndRivalBonus(players: Player[]): number {
+interface BonusResult { total: number; labels: string[] }
+
+function duoAndRivalBonus(players: Player[]): BonusResult {
   const names = players.map(p => p.name);
+  const labels: string[] = [];
   let duoBonus = 0;
-  for (const [a, b, pts] of HISTORIC_DUOS) {
-    if (names.includes(a) && names.includes(b)) duoBonus = Math.max(duoBonus, pts);
+  let bestLabel = '';
+  for (const [a, b, pts, label] of HISTORIC_DUOS) {
+    if (names.includes(a) && names.includes(b) && pts > duoBonus) {
+      duoBonus = pts;
+      bestLabel = label;
+    }
   }
+  if (duoBonus > 0) labels.push(bestLabel);
+
   let rivalBonus = 0;
-  for (const [a, b, pts] of HISTORIC_RIVALS) {
-    if (names.includes(a) && names.includes(b)) rivalBonus += pts * 0.5; // partial — rivals clash
+  for (const [a, b, pts, label] of HISTORIC_RIVALS) {
+    if (names.includes(a) && names.includes(b)) {
+      rivalBonus += pts * 0.5;
+      labels.push(label);
+    }
   }
-  return duoBonus + rivalBonus;
+  return { total: duoBonus + rivalBonus, labels };
 }
 
 // ─── Era chemistry bonus ──────────────────────────────────────────────────────
-function eraChemistryBonus(players: Player[]): number {
+function eraChemistryBonus(players: Player[]): BonusResult {
   const eraIds = players.map(p => p.eraId).filter((e): e is string => Boolean(e));
-  if (eraIds.length < 3) return 0;
+  if (eraIds.length < 3) return { total: 0, labels: [] };
   const unique = new Set(eraIds);
-  if (unique.size === 1) return 8;      // all from exact same era
-  if (unique.size === 2) return 3;      // two eras — some cohesion
-  return 0;
+  if (unique.size === 1) return { total: 8, labels: ['🕰️ Era Synergy — Same-Era Perfection (+8)'] };
+  if (unique.size === 2) return { total: 3, labels: ['🕰️ Era Blend — Cross-Era Chemistry (+3)'] };
+  return { total: 0, labels: [] };
 }
 
 // ─── Team chemistry bonus ─────────────────────────────────────────────────────
-function teamChemistryBonus(players: Player[]): number {
+function teamChemistryBonus(players: Player[]): BonusResult {
   const teamIds = players.map(p => p.teamId).filter((t): t is string => Boolean(t));
-  if (teamIds.length < 2) return 0;
+  if (teamIds.length < 2) return { total: 0, labels: [] };
   const counts: Record<string, number> = {};
   for (const t of teamIds) counts[t] = (counts[t] ?? 0) + 1;
   const max = Math.max(...Object.values(counts));
-  if (max >= 5) return 10;
-  if (max >= 3) return 5;
-  if (max >= 2) return 2;
-  return 0;
+  if (max >= 5) return { total: 10, labels: ['🤝 Dynasty Core — 5+ Teammates (+10)'] };
+  if (max >= 3) return { total: 5,  labels: ['🤝 Familiar Faces — 3+ Teammates (+5)'] };
+  if (max >= 2) return { total: 2,  labels: ['🤝 Familiar Faces — 2 Teammates (+2)'] };
+  return { total: 0, labels: [] };
 }
 
 // ─── Physical composition bonus ───────────────────────────────────────────────
-function physicalBonus(players: Player[], sport: Sport): number {
-  if (sport !== 'nba') return 0;
+function physicalBonus(players: Player[], sport: Sport): BonusResult {
+  if (sport !== 'nba') return { total: 0, labels: [] };
 
-  // Approximate height by position
-  const heightMap: Record<string, number> = { C: 84, PF: 81, SF: 79, SG: 76, PG: 73 }; // inches
+  const heightMap: Record<string, number> = { C: 84, PF: 81, SF: 79, SG: 76, PG: 73 };
   const heights = players.map(p => heightMap[p.position] ?? 77);
   const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
 
   const centers = players.filter(p => p.position === 'C').length;
   const bigs    = players.filter(p => p.position === 'C' || p.position === 'PF').length;
 
+  const labels: string[] = [];
   let bonus = 0;
-  if (centers >= 2) bonus += 8;          // twin towers
-  else if (bigs >= 3) bonus += 5;        // big lineup
-  if (avgHeight >= 80) bonus += 3;       // tall team overall
-  return bonus;
+  if (centers >= 2) { bonus += 8; labels.push('🏗️ Twin Towers — Dominant Inside (+8)'); }
+  else if (bigs >= 3) { bonus += 5; labels.push('💪 Big Lineup — Frontcourt Dominance (+5)'); }
+  if (avgHeight >= 80) { bonus += 3; labels.push('📏 Tall Team — Height Advantage (+3)'); }
+  return { total: bonus, labels };
+}
+
+// ─── Stat-based combo bonuses ─────────────────────────────────────────────────
+function statComboBonus(players: Player[], sport: Sport): BonusResult {
+  if (sport !== 'nba') return { total: 0, labels: [] };
+
+  const labels: string[] = [];
+  let bonus = 0;
+
+  // Alley-oop engine: a high-assist PG paired with a high-athleticism dunker (SG/SF with high blocks/pts)
+  const passers = players.filter(p => p.position === 'PG' && (p.stats.assists ?? 0) >= 8);
+  const dunkers = players.filter(p =>
+    (p.position === 'SG' || p.position === 'SF' || p.position === 'PF') &&
+    (p.stats.points ?? 0) >= 20 && (p.stats.blocks ?? 0) >= 0.8
+  );
+  if (passers.length > 0 && dunkers.length > 0) {
+    bonus += 8;
+    labels.push(`🔛 Alley-Oop Factory — ${passers[0].name} feeds ${dunkers[0].name} (+8)`);
+  }
+
+  // Deadeye shooter + facilitator: 3pt% > 0.40 shooter + assists > 8 player
+  const snipers = players.filter(p => (p.stats.threePointPct ?? 0) >= 0.40 && (p.stats.points ?? 0) >= 15);
+  const facilitators = players.filter(p => (p.stats.assists ?? 0) >= 8 && p !== (passers[0] ?? null));
+  if (snipers.length >= 2 && facilitators.length > 0) {
+    bonus += 7;
+    labels.push(`🎯 Deadeye Arsenal — ${snipers[0].name} & ${snipers[1].name} off assists (+7)`);
+  } else if (snipers.length >= 2) {
+    bonus += 5;
+    labels.push(`🎯 Sniper Duo — ${snipers[0].name} & ${snipers[1].name} shoot lights out (+5)`);
+  }
+
+  // Rim protector + scorer: C/PF with blocks >= 2 + SG/SF with pts >= 22
+  const rimProtectors = players.filter(p =>
+    (p.position === 'C' || p.position === 'PF') && (p.stats.blocks ?? 0) >= 2
+  );
+  const eliteScorers = players.filter(p =>
+    (p.position === 'SG' || p.position === 'SF' || p.position === 'PG') && (p.stats.points ?? 0) >= 22
+  );
+  if (rimProtectors.length > 0 && eliteScorers.length > 0) {
+    bonus += 7;
+    labels.push(`🛡️ Defend & Attack — ${rimProtectors[0].name} protects, ${eliteScorers[0].name} scores (+7)`);
+  }
+
+  // Inside-outside: dominant big (pts >= 20, reb >= 10) + perimeter threat (3pt% >= 0.38, pts >= 15)
+  const dominantBigs = players.filter(p =>
+    (p.position === 'C' || p.position === 'PF') &&
+    (p.stats.points ?? 0) >= 20 && (p.stats.rebounds ?? 0) >= 10
+  );
+  const perimeterThreats = players.filter(p =>
+    (p.position === 'PG' || p.position === 'SG' || p.position === 'SF') &&
+    (p.stats.threePointPct ?? 0) >= 0.38 && (p.stats.points ?? 0) >= 15
+  );
+  if (dominantBigs.length > 0 && perimeterThreats.length > 0) {
+    bonus += 6;
+    labels.push(`⚖️ Inside-Outside — ${dominantBigs[0].name} in the post, ${perimeterThreats[0].name} from deep (+6)`);
+  }
+
+  // Triple-double threat: player with pts >= 20, reb >= 8, ast >= 7
+  const tripleDoubleThreats = players.filter(p =>
+    (p.stats.points ?? 0) >= 20 &&
+    (p.stats.rebounds ?? 0) >= 8 &&
+    (p.stats.assists ?? 0) >= 7
+  );
+  if (tripleDoubleThreats.length >= 2) {
+    bonus += 10;
+    labels.push(`🌟 Double Triple-Double Threat — ${tripleDoubleThreats[0].name} & ${tripleDoubleThreats[1].name} (+10)`);
+  } else if (tripleDoubleThreats.length === 1) {
+    bonus += 5;
+    labels.push(`🌟 Triple-Double Threat — ${tripleDoubleThreats[0].name} does it all (+5)`);
+  }
+
+  return { total: bonus, labels };
 }
 
 export function computeTeamGSPR(
@@ -342,14 +455,15 @@ export function computeTeamGSPR(
   const eraChem    = eraChemistryBonus(players);
   const teamChem   = teamChemistryBonus(players);
   const physical   = physicalBonus(players, sport);
-  const totalBonus = duoRival + eraChem + teamChem + physical;
+  const statCombo  = statComboBonus(players, sport);
+  const totalBonus = duoRival.total + eraChem.total + teamChem.total + physical.total + statCombo.total;
 
   const w = SPORT_WEIGHTS[sport];
   const raw = (
     offenseScore * w.offense +
     defenseScore * w.defense +
     depthScore * w.depth +
-    totalBonus * 0.06
+    totalBonus * 0.12
   );
 
   // Scale to 0–1000
@@ -362,14 +476,15 @@ export function computeTeamGSPR(
     : 'average';
 
   const breakdownParts: string[] = [
-    `Offense: ${Math.round(offenseScore)}/100`,
-    `Defense: ${Math.round(defenseScore)}/100`,
-    `Depth: ${Math.round(depthScore)}/100`,
+    `📊 Offense: ${Math.round(offenseScore)}/100`,
+    `🛡️ Defense: ${Math.round(defenseScore)}/100`,
+    `📋 Depth: ${Math.round(depthScore)}/100`,
+    ...duoRival.labels,
+    ...eraChem.labels,
+    ...teamChem.labels,
+    ...physical.labels,
+    ...statCombo.labels,
   ];
-  if (duoRival > 0)  breakdownParts.push(`Historic Duo/Rivalry: +${Math.round(duoRival)}`);
-  if (eraChem > 0)   breakdownParts.push(`Era Chemistry: +${eraChem}`);
-  if (teamChem > 0)  breakdownParts.push(`Team Chemistry: +${teamChem}`);
-  if (physical > 0)  breakdownParts.push(`Physical Edge: +${physical}`);
 
   return { gspr, offenseScore, defenseScore, depthScore, chemistryBonus: totalBonus, tier, breakdown: breakdownParts };
 }

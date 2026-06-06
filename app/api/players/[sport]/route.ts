@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { Sport, PlayersResponse, HistoricalTeam } from '@/lib/types';
+import type { Sport, PlayersResponse, HistoricalTeam, Player } from '@/lib/types';
 import { generateTeamEras } from '@/lib/constants';
 import { MLB_TEAMS, fetchMLBPlayers } from '@/lib/sports/mlb';
 import { NHL_TEAMS, fetchNHLPlayers } from '@/lib/sports/nhl';
@@ -22,6 +22,25 @@ const TEAMS_BY_SPORT: Record<Sport, HistoricalTeam[]> = {
   nba: NBA_TEAMS,
   nfl: NFL_TEAMS,
 };
+
+// Re-score players relative to each other within this pool.
+// Raw scores reflect position-normalized ability; pool normalization maps the
+// best player to ~95 and the weakest contributor to ~18, preserving rank order.
+function normalizePoolScores(players: Player[]): Player[] {
+  if (players.length < 2) return players;
+  const scores = players.map(p => p.playerScore);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  if (max === min) return players;
+  const TARGET_MIN = 18;
+  const TARGET_MAX = 95;
+  return players.map(p => ({
+    ...p,
+    playerScore: Math.round(
+      (TARGET_MIN + ((p.playerScore - min) / (max - min)) * (TARGET_MAX - TARGET_MIN)) * 10
+    ) / 10,
+  }));
+}
 
 export async function GET(
   req: NextRequest,
@@ -58,7 +77,7 @@ export async function GET(
   }
 
   try {
-    let players;
+    let players: Player[];
     switch (sport) {
       case 'mlb':
         players = await fetchMLBPlayers(team, era);
@@ -75,6 +94,9 @@ export async function GET(
       default:
         return NextResponse.json({ error: 'Sport not implemented' }, { status: 501 });
     }
+
+    // Normalize player scores relative to this pool (0–100 scale, best player ~95)
+    players = normalizePoolScores(players);
 
     const response: PlayersResponse = { players, era, team };
 
