@@ -187,10 +187,5 @@ export async function fetchMLBPlayers(team: HistoricalTeam, era: Era): Promise<P
     }
   }
 
-  const all = Array.from(bestByName.values()).sort((a, b) => b.playerScore - a.playerScore);
-
-  // Starting lineup: top 9 batters + top 3 pitchers (SP, RP/CL)
-  const batters  = all.filter(p => p.positionGroup === 'offense').slice(0, 9);
-  const pitchers = all.filter(p => p.positionGroup === 'pitching').slice(0, 4);
-  return [...batters, ...pitchers];
+  return Array.from(bestByName.values()).sort((a, b) => b.playerScore - a.playerScore);
 }

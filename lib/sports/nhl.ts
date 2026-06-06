@@ -113,12 +113,7 @@ export async function fetchNHLPlayers(team: HistoricalTeam, era: Era): Promise<P
 
   if (players.length === 0) return generateFallbackNHLPlayers(team, era);
 
-  // Starting lineup: top 2 forward lines (6F) + top D pair (4D) + 2 goalies = 12
-  const sorted = players.sort((a, b) => b.playerScore - a.playerScore);
-  const forwards = sorted.filter(p => p.positionGroup === 'offense').slice(0, 6);
-  const defense  = sorted.filter(p => p.positionGroup === 'defense').slice(0, 4);
-  const goalies  = sorted.filter(p => p.positionGroup === 'goalie').slice(0, 2);
-  return [...forwards, ...defense, ...goalies];
+  return players.sort((a, b) => b.playerScore - a.playerScore);
 }
 
 const NHL_FIRST = ['Connor', 'Nathan', 'Auston', 'David', 'Sidney', 'Alex', 'Leon', 'Nikita', 'Andrei', 'Mark', 'Elias', 'Mitch', 'Sebastian', 'Brady', 'Brayden', 'John', 'Patrice', 'Claude', 'Erik', 'Victor'];

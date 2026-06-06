@@ -163,15 +163,14 @@ export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, apiKey?: s
 
   if (players.length < 5) return generateFallbackNBAPlayers(team, era);
 
-  // Return top 8 starters (starting lineup + a couple key reserves)
-  return players.sort((a, b) => b.playerScore - a.playerScore).slice(0, 8);
+  return players.sort((a, b) => b.playerScore - a.playerScore);
 }
 
-// Starting-lineup positions (5 starters + 3 reserve spots)
+// 15-player era pool (5 starters + 10 rotation players)
 const STARTER_TEMPLATES: Array<{ pos: Player['position']; idx: number }> = [
-  { pos: 'PG', idx: 0 }, { pos: 'SG', idx: 1 }, { pos: 'SF', idx: 2 },
-  { pos: 'PF', idx: 3 }, { pos: 'C',  idx: 4 },
-  { pos: 'PG', idx: 5 }, { pos: 'SF', idx: 6 }, { pos: 'PF', idx: 7 },
+  { pos: 'PG', idx: 0 }, { pos: 'SG', idx: 1 }, { pos: 'SF', idx: 2 }, { pos: 'PF', idx: 3 }, { pos: 'C',  idx: 4 },
+  { pos: 'PG', idx: 5 }, { pos: 'SG', idx: 6 }, { pos: 'SF', idx: 7 }, { pos: 'PF', idx: 8 }, { pos: 'C',  idx: 9 },
+  { pos: 'PG', idx: 10 }, { pos: 'SG', idx: 11 }, { pos: 'SF', idx: 12 }, { pos: 'PF', idx: 13 }, { pos: 'C', idx: 14 },
 ];
 
 function generateFallbackNBAPlayers(team: HistoricalTeam, era: Era): Player[] {

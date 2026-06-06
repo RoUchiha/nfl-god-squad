@@ -57,35 +57,39 @@ export const SPORT_CONFIG: Record<Sport, {
 // ─── Roster Templates ────────────────────────────────────────────────────────
 
 export const NBA_ROSTER: RosterSlotTemplate[] = [
-  { id: 'pg', position: 'PG', label: 'Point Guard', group: 'offense', required: true },
-  { id: 'sg', position: 'SG', label: 'Shooting Guard', group: 'offense', required: true },
-  { id: 'sf', position: 'SF', label: 'Small Forward', group: 'offense', required: true },
-  { id: 'pf', position: 'PF', label: 'Power Forward', group: 'offense', required: true },
-  { id: 'c', position: 'C', label: 'Center', group: 'offense', required: true },
-  { id: 'b1', position: ['PG', 'SG'], label: 'Bench (Guard)', group: 'offense', required: false },
-  { id: 'b2', position: ['SF', 'PF'], label: 'Bench (Forward)', group: 'offense', required: false },
-  { id: 'b3', position: ['PF', 'C'], label: 'Bench (Big)', group: 'offense', required: false },
+  { id: 'pg',    position: 'PG',                           label: 'Point Guard',    group: 'offense', required: true },
+  { id: 'sg',    position: 'SG',                           label: 'Shooting Guard', group: 'offense', required: true },
+  { id: 'sf',    position: 'SF',                           label: 'Small Forward',  group: 'offense', required: true },
+  { id: 'pf',    position: 'PF',                           label: 'Power Forward',  group: 'offense', required: true },
+  { id: 'c',     position: 'C',                            label: 'Center',         group: 'offense', required: true },
+  { id: '6man',  position: ['PG','SG','SF','PF','C'],       label: '6th Man',        group: 'offense', required: true },
 ];
 
+// 20-0.com style: full 22-man starting lineup
 export const NFL_OFFENSE_ROSTER: RosterSlotTemplate[] = [
-  { id: 'qb', position: 'QB', label: 'Quarterback', group: 'offense', required: true },
-  { id: 'rb', position: 'RB', label: 'Running Back', group: 'offense', required: true },
+  { id: 'qb',  position: 'QB', label: 'Quarterback',     group: 'offense', required: true },
+  { id: 'rb1', position: 'RB', label: 'Running Back',    group: 'offense', required: true },
+  { id: 'rb2', position: 'RB', label: 'Fullback / RB2',  group: 'offense', required: false },
   { id: 'wr1', position: 'WR', label: 'Wide Receiver 1', group: 'offense', required: true },
   { id: 'wr2', position: 'WR', label: 'Wide Receiver 2', group: 'offense', required: true },
-  { id: 'wr3', position: 'WR', label: 'Wide Receiver 3', group: 'offense', required: false },
-  { id: 'te', position: 'TE', label: 'Tight End', group: 'offense', required: true },
-  { id: 'k', position: 'K', label: 'Kicker', group: 'offense', required: false },
+  { id: 'wr3', position: 'WR', label: 'Slot Receiver',   group: 'offense', required: false },
+  { id: 'te1', position: 'TE', label: 'Tight End',       group: 'offense', required: true },
+  { id: 'te2', position: 'TE', label: 'H-Back / TE2',    group: 'offense', required: false },
+  { id: 'k',   position: 'K',  label: 'Kicker',          group: 'offense', required: false },
 ];
 
 export const NFL_DEFENSE_ROSTER: RosterSlotTemplate[] = [
-  { id: 'de1', position: 'DE', label: 'Defensive End 1', group: 'defense', required: true },
-  { id: 'de2', position: 'DE', label: 'Defensive End 2', group: 'defense', required: true },
-  { id: 'dt', position: 'DT', label: 'Defensive Tackle', group: 'defense', required: true },
-  { id: 'lb1', position: 'LB', label: 'Linebacker 1', group: 'defense', required: true },
-  { id: 'lb2', position: 'LB', label: 'Linebacker 2', group: 'defense', required: true },
-  { id: 'cb1', position: 'CB', label: 'Cornerback 1', group: 'defense', required: true },
-  { id: 'cb2', position: 'CB', label: 'Cornerback 2', group: 'defense', required: true },
-  { id: 's', position: 'S', label: 'Safety', group: 'defense', required: true },
+  { id: 'de1', position: 'DE', label: 'Defensive End 1',  group: 'defense', required: true },
+  { id: 'de2', position: 'DE', label: 'Defensive End 2',  group: 'defense', required: true },
+  { id: 'dt1', position: 'DT', label: 'Defensive Tackle', group: 'defense', required: true },
+  { id: 'dt2', position: 'DT', label: 'Nose Tackle',      group: 'defense', required: false },
+  { id: 'lb1', position: 'LB', label: 'Linebacker 1',     group: 'defense', required: true },
+  { id: 'lb2', position: 'LB', label: 'Linebacker 2',     group: 'defense', required: true },
+  { id: 'lb3', position: 'LB', label: 'Linebacker 3',     group: 'defense', required: false },
+  { id: 'cb1', position: 'CB', label: 'Cornerback 1',     group: 'defense', required: true },
+  { id: 'cb2', position: 'CB', label: 'Cornerback 2',     group: 'defense', required: true },
+  { id: 'fs',  position: 'S',  label: 'Free Safety',      group: 'defense', required: true },
+  { id: 'ss',  position: 'S',  label: 'Strong Safety',    group: 'defense', required: false },
 ];
 
 export const MLB_OFFENSE_ROSTER: RosterSlotTemplate[] = [
