@@ -10,14 +10,22 @@ interface Props {
   onSelect: (player: Player) => void;
   sport: Sport;
   highlightPositions: Player['position'][] | null;
+  activePick: Player | null;
 }
 
-export default function PlayerPool({ players, isLoading, selectedIds, onSelect, sport, highlightPositions }: Props) {
+export default function PlayerPool({ players, isLoading, selectedIds, onSelect, sport, highlightPositions, activePick }: Props) {
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Player Pool</h2>
-        {!isLoading && players.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Player Pool</h2>
+          {activePick && (
+            <p className="text-xs text-yellow-400 mt-0.5">
+              Placing <span className="font-semibold">{activePick.name}</span> — choose a slot →
+            </p>
+          )}
+        </div>
+        {!isLoading && players.length > 0 && !activePick && (
           <span className="text-xs text-gray-600">{players.length} players</span>
         )}
       </div>

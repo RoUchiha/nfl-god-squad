@@ -39,7 +39,7 @@ export const SPORT_CONFIG: Record<Sport, {
     accentColor: '#E31837',
     bgColor: '#000A1A',
     gamesInSeason: 162,
-    hasModes: true,
+    hasModes: false,
     tagline: 'Can your squad go 162-0?',
   },
   nhl: {
@@ -49,7 +49,7 @@ export const SPORT_CONFIG: Record<Sport, {
     accentColor: '#FCB514',
     bgColor: '#001020',
     gamesInSeason: 82,
-    hasModes: true,
+    hasModes: false,
     tagline: 'Can your squad go 82-0?',
   },
 };

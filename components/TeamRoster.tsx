@@ -8,9 +8,10 @@ interface Props {
   onRemove: (slotId: string) => void;
   onPositionSwap: (slotId: string, position: Player['position'] | Player['position'][]) => void;
   positionSwapUsed: boolean;
+  justPlacedSlotId: string | null;
 }
 
-export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, positionSwapUsed }: Props) {
+export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, positionSwapUsed, justPlacedSlotId }: Props) {
   const offenseSlots = slots.filter(s => s.group === 'offense');
   const defenseSlots = slots.filter(s => s.group === 'defense' || s.group === 'pitching' || s.group === 'goalie');
 
@@ -26,6 +27,7 @@ export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, pos
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
             positionSwapUsed={positionSwapUsed}
+            justPlacedSlotId={justPlacedSlotId}
           />
         )}
         {defenseSlots.length > 0 && (
@@ -35,6 +37,7 @@ export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, pos
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
             positionSwapUsed={positionSwapUsed}
+            justPlacedSlotId={justPlacedSlotId}
           />
         )}
       </div>
@@ -48,12 +51,14 @@ function SlotGroup({
   onRemove,
   onPositionSwap,
   positionSwapUsed,
+  justPlacedSlotId,
 }: {
   label: string;
   slots: FilledRosterSlot[];
   onRemove: (id: string) => void;
   onPositionSwap: (id: string, pos: Player['position'] | Player['position'][]) => void;
   positionSwapUsed: boolean;
+  justPlacedSlotId: string | null;
 }) {
   return (
     <div className="mb-3">
@@ -66,6 +71,7 @@ function SlotGroup({
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
             positionSwapUsed={positionSwapUsed}
+            isJustPlaced={slot.id === justPlacedSlotId}
           />
         ))}
       </div>
@@ -78,8 +84,10 @@ function RosterSlot({
   onRemove,
   onPositionSwap,
   positionSwapUsed,
+  isJustPlaced,
 }: {
   slot: FilledRosterSlot;
+  isJustPlaced: boolean;
   onRemove: (id: string) => void;
   onPositionSwap: (id: string, pos: Player['position'] | Player['position'][]) => void;
   positionSwapUsed: boolean;
@@ -109,7 +117,11 @@ function RosterSlot({
 
   const p = slot.player;
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 group">
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border group transition-all duration-300
+      ${isJustPlaced
+        ? 'bg-green-950/40 border-green-700/60'
+        : 'bg-white/5 border-white/10'
+      }`}>
       <span className="text-[10px] font-bold text-gray-500 w-8 flex-shrink-0">{posLabel}</span>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-white truncate">{p.name}</div>

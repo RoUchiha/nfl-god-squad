@@ -16,9 +16,11 @@ import PowerMeter from './PowerMeter';
 import RerollBar from './RerollBar';
 import ModeSelector from './ModeSelector';
 import SimulationModal from './SimulationModal';
+import PlayerPlacementPicker from './PlayerPlacementPicker';
 
 export default function GameContainer() {
-  const loadIdRef = useRef(0); // cancels stale async loads
+  const loadIdRef = useRef(0);
+
   const [sport, setSport] = useState<Sport>('nba');
   const [mode, setMode] = useState<DraftMode>('combined');
   const [era, setEra] = useState<Era | null>(null);
@@ -34,42 +36,28 @@ export default function GameContainer() {
   const [error, setError] = useState<string | null>(null);
   const [swapMode, setSwapMode] = useState<{ slotId: string; position: Player['position'] | Player['position'][] } | null>(null);
 
+  // Placement picker state
+  const [playerToPlace, setPlayerToPlace] = useState<Player | null>(null);
+  // After placing, show "Next Pick" prompt
+  const [justPlacedSlotId, setJustPlacedSlotId] = useState<string | null>(null);
+
+  // Only NFL has offense/defense split mode
+  const sportHasModes = SPORT_CONFIG[sport].hasModes;
+
   const gspr = slots.length > 0 && team
     ? computeTeamGSPR(slots, sport, mode).gspr
     : 0;
 
-  const isRosterFull = slots.length > 0 && slots.filter(s => s.required && !s.player).length === 0;
-
-  // Load a random era+team for the given sport
-  const loadEra = useCallback(async (s: Sport) => {
-    const myId = ++loadIdRef.current; // each call gets a unique ID
-    setIsLoadingEra(true);
-    setError(null);
-    setPlayers([]);
-    setResults(null);
-    setShowResults(false);
-
-    try {
-      const res = await fetch(`/api/era/${s}`);
-      if (!res.ok) throw new Error('Failed to load era');
-      const data: EraResponse = await res.json();
-      if (myId !== loadIdRef.current) return; // stale — a newer load started
-      setEra(data.era);
-      setTeam(data.team);
-      await loadPlayers(s, data.team.id, data.era.id, myId);
-    } catch {
-      if (myId === loadIdRef.current) setError('Failed to load game data. Please try again.');
-    } finally {
-      if (myId === loadIdRef.current) setIsLoadingEra(false);
-    }
-  }, []);
+  const filledRequired = slots.filter(s => s.required && s.player);
+  const totalRequired = slots.filter(s => s.required);
+  const isRosterFull = totalRequired.length > 0 && filledRequired.length === totalRequired.length;
+  const openRequired = totalRequired.filter(s => !s.player);
 
   const loadPlayers = useCallback(async (s: Sport, teamId: string, eraId: string, expectedId?: number) => {
     setIsLoadingPlayers(true);
     setError(null);
-
     try {
-      const res = await fetch(`/api/players/${s}?teamId=${teamId}&eraId=${eraId}`);
+      const res = await fetch(`/api/players/${s}?teamId=${encodeURIComponent(teamId)}&eraId=${encodeURIComponent(eraId)}`);
       if (!res.ok) throw new Error('Failed to load players');
       const data: PlayersResponse = await res.json();
       if (expectedId !== undefined && expectedId !== loadIdRef.current) return;
@@ -85,13 +73,61 @@ export default function GameContainer() {
     }
   }, []);
 
-  // Initialize roster slots when sport/mode changes
+  const loadEra = useCallback(async (s: Sport) => {
+    const myId = ++loadIdRef.current;
+    setIsLoadingEra(true);
+    setError(null);
+    setPlayers([]);
+    setResults(null);
+    setShowResults(false);
+    setJustPlacedSlotId(null);
+    setPlayerToPlace(null);
+    try {
+      const res = await fetch(`/api/era/${s}`);
+      if (!res.ok) throw new Error('Failed to load era');
+      const data: EraResponse = await res.json();
+      if (myId !== loadIdRef.current) return;
+      setEra(data.era);
+      setTeam(data.team);
+      await loadPlayers(s, data.team.id, data.era.id, myId);
+    } catch {
+      if (myId === loadIdRef.current) setError('Failed to load game data. Please try again.');
+    } finally {
+      if (myId === loadIdRef.current) setIsLoadingEra(false);
+    }
+  }, [loadPlayers]);
+
+  // Load new era+team without clearing the existing roster (Next Pick)
+  const loadNextPick = useCallback(async (s: Sport) => {
+    const myId = ++loadIdRef.current;
+    setIsLoadingEra(true);
+    setError(null);
+    setPlayers([]);
+    setJustPlacedSlotId(null);
+    setPlayerToPlace(null);
+    try {
+      const res = await fetch(`/api/era/${s}`);
+      if (!res.ok) throw new Error('Failed to load era');
+      const data: EraResponse = await res.json();
+      if (myId !== loadIdRef.current) return;
+      setEra(data.era);
+      setTeam(data.team);
+      // NOTE: intentionally does NOT clear slots — roster persists
+      await loadPlayers(s, data.team.id, data.era.id, myId);
+    } catch {
+      if (myId === loadIdRef.current) setError('Failed to load next pick. Please try again.');
+    } finally {
+      if (myId === loadIdRef.current) setIsLoadingEra(false);
+    }
+  }, [loadPlayers]);
+
+  // Reset roster slots when sport or mode changes
   useEffect(() => {
     const templates = getRosterTemplates(sport, mode);
     setSlots(templates.map(t => ({ ...t, player: null })));
   }, [sport, mode]);
 
-  // Load initial era when sport changes
+  // Load era on sport change
   useEffect(() => {
     setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
     loadEra(sport);
@@ -99,7 +135,8 @@ export default function GameContainer() {
 
   const handleSportChange = (s: Sport) => {
     setSport(s);
-    setMode(SPORT_CONFIG[s].hasModes ? 'combined' : 'combined');
+    // Reset mode to combined when switching sports (only NFL uses modes)
+    setMode('combined');
   };
 
   const handleModeChange = (m: DraftMode) => {
@@ -107,45 +144,38 @@ export default function GameContainer() {
     setSlots(getRosterTemplates(sport, m).map(t => ({ ...t, player: null })));
   };
 
-  const positionMatches = (slotPos: Player['position'] | Player['position'][], playerPos: Player['position']): boolean => {
-    if (Array.isArray(slotPos)) return slotPos.includes(playerPos);
-    return slotPos === playerPos;
-  };
-
+  // When user clicks a player from the pool
   const handleSelectPlayer = (player: Player) => {
     if (swapMode) {
-      // Swap mode: replace specific slot
-      setSlots(prev => prev.map(s =>
-        s.id === swapMode.slotId ? { ...s, player } : s
-      ));
+      // Swap mode: directly place in the swap slot
+      setSlots(prev => prev.map(s => s.id === swapMode.slotId ? { ...s, player } : s));
       setSwapMode(null);
+      setJustPlacedSlotId(swapMode.slotId);
       return;
     }
+    // Open the placement picker
+    setPlayerToPlace(player);
+    setJustPlacedSlotId(null);
+  };
 
-    // Find first empty slot that accepts this player's position
-    setSlots(prev => {
-      const idx = prev.findIndex(s =>
-        !s.player && positionMatches(s.position, player.position)
-      );
-      if (idx === -1) return prev;
-      const updated = [...prev];
-      updated[idx] = { ...updated[idx], player };
-      return updated;
-    });
+  // When user picks a slot in the placement picker
+  const handlePlacePlayer = (player: Player, slotId: string) => {
+    setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player } : s));
+    setPlayerToPlace(null);
+    setJustPlacedSlotId(slotId);
   };
 
   const handleRemovePlayer = (slotId: string) => {
     setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
+    if (justPlacedSlotId === slotId) setJustPlacedSlotId(null);
   };
 
   const handleTeamReroll = async () => {
     if (rerolls.teamUsed || !era) return;
     setRerolls(r => ({ ...r, teamUsed: true }));
-    // Get same era, different team
     setIsLoadingEra(true);
     try {
       let newTeam = team;
-      // Try up to 5 times to get a different team
       for (let i = 0; i < 5; i++) {
         const res = await fetch(`/api/era/${sport}`);
         const data: EraResponse = await res.json();
@@ -154,6 +184,7 @@ export default function GameContainer() {
       if (newTeam && newTeam.id !== team?.id) {
         setTeam(newTeam);
         setSlots(prev => prev.map(s => ({ ...s, player: null })));
+        setJustPlacedSlotId(null);
         await loadPlayers(sport, newTeam.id, era.id);
       }
     } finally {
@@ -165,15 +196,20 @@ export default function GameContainer() {
     if (rerolls.eraUsed) return;
     setRerolls(r => ({ ...r, eraUsed: true }));
     setSlots(prev => prev.map(s => ({ ...s, player: null })));
+    setJustPlacedSlotId(null);
     await loadEra(sport);
   };
 
   const handlePositionSwap = (slotId: string, position: Player['position'] | Player['position'][]) => {
     if (rerolls.positionSwapUsed) return;
     setRerolls(r => ({ ...r, positionSwapUsed: true }));
-    // Remove the current player from that slot and enter swap mode
     setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
     setSwapMode({ slotId, position });
+  };
+
+  const handleNextPick = () => {
+    setJustPlacedSlotId(null);
+    loadNextPick(sport);
   };
 
   const handleSimulate = async () => {
@@ -201,11 +237,15 @@ export default function GameContainer() {
     setShowResults(false);
     setSlots(prev => prev.map(s => ({ ...s, player: null })));
     setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
+    setJustPlacedSlotId(null);
     loadEra(sport);
   };
 
   const selectedPlayerIds = new Set(slots.map(s => s.player?.id).filter(Boolean) as string[]);
   const cfg = SPORT_CONFIG[sport];
+
+  // Positions the placement picker should highlight in the pool
+  const highlightPositions = playerToPlace ? [playerToPlace.position] : null;
 
   return (
     <div className={`theme-${sport} min-h-screen`}>
@@ -214,16 +254,13 @@ export default function GameContainer() {
         <div className="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl">⚡</span>
-            <span className="font-black text-xl tracking-tight text-white">
-              GOD SQUAD
-            </span>
+            <span className="font-black text-xl tracking-tight text-white">GOD SQUAD</span>
             <span className="text-xs text-gray-500 hidden sm:block">{cfg.tagline}</span>
           </div>
           <SportTabBar activeSport={sport} onChange={handleSportChange} />
         </div>
       </header>
 
-      {/* Main content */}
       <div className="max-w-screen-xl mx-auto px-4 py-6">
         {error && (
           <div className="mb-4 p-3 bg-red-950/50 border border-red-800 rounded-lg text-red-300 text-sm">
@@ -232,15 +269,11 @@ export default function GameContainer() {
           </div>
         )}
 
-        {/* Era info + Mode selector row */}
+        {/* Era + Mode row */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <EraCard
-            era={era}
-            team={team}
-            isLoading={isLoadingEra}
-            sport={sport}
-          />
-          {SPORT_CONFIG[sport].hasModes && (
+          <EraCard era={era} team={team} isLoading={isLoadingEra} sport={sport} />
+          {/* Only NFL has offense/defense modes */}
+          {sportHasModes && (
             <ModeSelector mode={mode} onChange={handleModeChange} />
           )}
         </div>
@@ -253,11 +286,32 @@ export default function GameContainer() {
           isLoading={isLoadingEra}
         />
 
+        {/* Swap mode banner */}
         {swapMode && (
           <div className="mb-3 px-4 py-2 bg-yellow-950/60 border border-yellow-700 rounded-lg text-yellow-300 text-sm flex items-center gap-2">
             <span>🔄</span>
-            <span>Position swap active — click a player from the pool to swap them in.</span>
+            <span>Position swap active — click a player to swap them in.</span>
             <button onClick={() => setSwapMode(null)} className="ml-auto text-yellow-400 hover:text-yellow-200 text-xs">Cancel</button>
+          </div>
+        )}
+
+        {/* Next Pick banner — shown after placing a player */}
+        {justPlacedSlotId && !isRosterFull && (
+          <div className="mb-3 px-4 py-3 bg-green-950/50 border border-green-800/50 rounded-xl text-sm flex items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">✓</span>
+              <span className="text-green-300">Player placed!</span>
+              <span className="text-gray-500">
+                {openRequired.length} required slot{openRequired.length !== 1 ? 's' : ''} remaining
+              </span>
+            </div>
+            <button
+              onClick={handleNextPick}
+              disabled={isLoadingEra}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-green-900/60 border border-green-700 text-green-300 hover:bg-green-900 hover:text-green-100 transition-all font-medium text-sm disabled:opacity-50"
+            >
+              {isLoadingEra ? 'Loading...' : '🎲 Next Pick →'}
+            </button>
           </div>
         )}
 
@@ -270,7 +324,8 @@ export default function GameContainer() {
             selectedIds={selectedPlayerIds}
             onSelect={handleSelectPlayer}
             sport={sport}
-            highlightPositions={swapMode ? (Array.isArray(swapMode.position) ? swapMode.position : [swapMode.position]) : null}
+            highlightPositions={highlightPositions}
+            activePick={playerToPlace}
           />
 
           <div className="hidden lg:block bg-white/5" />
@@ -282,11 +337,12 @@ export default function GameContainer() {
             onRemove={handleRemovePlayer}
             onPositionSwap={handlePositionSwap}
             positionSwapUsed={rerolls.positionSwapUsed}
+            justPlacedSlotId={justPlacedSlotId}
           />
 
           <div className="hidden lg:block bg-white/5" />
 
-          {/* Right panel: Power Meter + Simulate */}
+          {/* Power Meter + Simulate */}
           <div className="flex flex-col gap-4">
             <PowerMeter gspr={gspr} slots={slots} sport={sport} mode={mode} />
 
@@ -297,18 +353,21 @@ export default function GameContainer() {
                 w-full py-4 rounded-xl font-black text-lg tracking-wide uppercase
                 transition-all duration-200
                 ${isRosterFull && !isSimulating
-                  ? 'bg-gradient-to-r from-[var(--sport-primary)] to-[var(--sport-accent)] text-white hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer'
+                  ? 'text-white hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer'
                   : 'bg-gray-800 text-gray-600 cursor-not-allowed'
                 }
                 ${isSimulating ? 'animate-pulse' : ''}
               `}
+              style={isRosterFull && !isSimulating ? {
+                background: `linear-gradient(135deg, ${cfg.primaryColor}, ${cfg.accentColor})`
+              } : undefined}
             >
               {isSimulating ? 'Simulating...' : isRosterFull ? '⚡ Simulate Season' : 'Fill Roster to Simulate'}
             </button>
 
             <div className="text-center text-xs text-gray-600">
-              {slots.filter(s => s.required && !s.player).length > 0
-                ? `${slots.filter(s => s.required && !s.player).length} required slots remaining`
+              {openRequired.length > 0
+                ? `${openRequired.length} required slot${openRequired.length !== 1 ? 's' : ''} remaining`
                 : slots.filter(s => !s.player).length > 0
                   ? `${slots.filter(s => !s.player).length} optional slots empty`
                   : '✓ Roster complete — ready to simulate!'
@@ -317,6 +376,16 @@ export default function GameContainer() {
           </div>
         </div>
       </div>
+
+      {/* Placement picker overlay */}
+      {playerToPlace && (
+        <PlayerPlacementPicker
+          player={playerToPlace}
+          slots={slots}
+          onPlace={handlePlacePlayer}
+          onCancel={() => setPlayerToPlace(null)}
+        />
+      )}
 
       {/* Results Modal */}
       {showResults && results && (
