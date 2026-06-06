@@ -114,34 +114,45 @@ export async function fetchNHLPlayers(team: HistoricalTeam, era: Era): Promise<P
   return players.sort((a, b) => b.playerScore - a.playerScore).slice(0, 25);
 }
 
+const NHL_FIRST = ['Connor', 'Nathan', 'Auston', 'David', 'Sidney', 'Alex', 'Leon', 'Nikita', 'Andrei', 'Mark', 'Elias', 'Mitch', 'Sebastian', 'Brady', 'Brayden', 'John', 'Patrice', 'Claude', 'Erik', 'Victor'];
+const NHL_LAST = ['McDavid', 'MacKinnon', 'Matthews', 'Pastrnak', 'Crosby', 'Ovechkin', 'Draisaitl', 'Kucherov', 'Svechnikov', 'Stone', 'Pettersson', 'Marner', 'Aho', 'Tkachuk', 'Point', 'Tavares', 'Bergeron', 'Giroux', 'Karlsson', 'Hedman'];
+
+function nhlFakeName(seed: number): string {
+  return `${NHL_FIRST[seed % NHL_FIRST.length]} ${NHL_LAST[(seed * 7 + 3) % NHL_LAST.length]}`;
+}
+
 function generateFallbackNHLPlayers(team: HistoricalTeam, era: Era): Player[] {
-  // Generate plausible placeholder players when API fails
-  const positions: Array<{ pos: Player['position']; group: Player['positionGroup']; label: string }> = [
-    { pos: 'C_NHL', group: 'offense', label: 'C' },
-    { pos: 'LW', group: 'offense', label: 'LW' },
-    { pos: 'RW', group: 'offense', label: 'RW' },
-    { pos: 'C_NHL', group: 'offense', label: 'C' },
-    { pos: 'LW', group: 'offense', label: 'LW' },
-    { pos: 'RW', group: 'offense', label: 'RW' },
-    { pos: 'D', group: 'defense', label: 'D' },
-    { pos: 'D', group: 'defense', label: 'D' },
-    { pos: 'D', group: 'defense', label: 'D' },
-    { pos: 'D', group: 'defense', label: 'D' },
-    { pos: 'G_NHL', group: 'goalie', label: 'G' },
-    { pos: 'G_NHL', group: 'goalie', label: 'G' },
+  const positions: Array<{ pos: Player['position']; group: Player['positionGroup']; idx: number }> = [
+    { pos: 'C_NHL', group: 'offense', idx: 0 },
+    { pos: 'LW',    group: 'offense', idx: 1 },
+    { pos: 'RW',    group: 'offense', idx: 2 },
+    { pos: 'C_NHL', group: 'offense', idx: 3 },
+    { pos: 'LW',    group: 'offense', idx: 4 },
+    { pos: 'RW',    group: 'offense', idx: 5 },
+    { pos: 'D',     group: 'defense', idx: 6 },
+    { pos: 'D',     group: 'defense', idx: 7 },
+    { pos: 'D',     group: 'defense', idx: 8 },
+    { pos: 'D',     group: 'defense', idx: 9 },
+    { pos: 'G_NHL', group: 'goalie',  idx: 10 },
+    { pos: 'G_NHL', group: 'goalie',  idx: 11 },
   ];
 
-  return positions.map((pos, i) => {
-    const pts = pos.group === 'offense' ? Math.round(45 + Math.random() * 55) : pos.group === 'defense' ? Math.round(20 + Math.random() * 40) : 0;
+  const teamSeed = team.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 13;
+
+  return positions.map(({ pos, group, idx }) => {
+    const s = teamSeed + idx;
+    const offPts = 45 + (s * 7 % 55);
+    const defPts = 20 + (s * 5 % 40);
+    const pts = group === 'offense' ? offPts : group === 'defense' ? defPts : 0;
     const p: Player = {
-      id: `nhl-fb-${team.id}-${i}`,
-      name: `${team.city} ${pos.label} ${i + 1}`,
-      position: pos.pos,
-      positionGroup: pos.group,
+      id: `nhl-fb-${team.id}-${idx}`,
+      name: nhlFakeName(s),
+      position: pos,
+      positionGroup: group,
       yearsWithTeam: `${era.startYear}–${era.endYear}`,
-      stats: pos.group === 'goalie'
-        ? { savePct: 0.905 + Math.random() * 0.02, goalsAgainstAvg: 2.5 + Math.random() * 0.8 }
-        : { nhlPoints: pts, goals: Math.round(pts * 0.4), nhlAssists: Math.round(pts * 0.6), plusMinus: Math.round((Math.random() - 0.3) * 30) },
+      stats: group === 'goalie'
+        ? { savePct: 0.905 + (s % 20) / 1000, goalsAgainstAvg: 2.5 + (s % 8) / 10 }
+        : { nhlPoints: pts, goals: Math.round(pts * 0.4), nhlAssists: Math.round(pts * 0.6), plusMinus: (s % 30) - 8, powerPlayGoals: s % 12 },
       playerScore: 0,
     };
     p.playerScore = computePlayerScore(p, 'nhl');

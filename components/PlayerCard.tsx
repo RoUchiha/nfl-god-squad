@@ -11,15 +11,20 @@ interface Props {
 }
 
 const STAT_LABELS: Record<string, string> = {
+  // NBA
   points: 'PPG', rebounds: 'RPG', assists: 'APG', steals: 'SPG', blocks: 'BPG',
-  fieldGoalPct: 'FG%', threePointPct: '3P%',
-  passingYards: 'Pass Yds', passingTDs: 'Pass TD', passerRating: 'Rating',
-  rushingYards: 'Rush Yds', rushingTDs: 'Rush TD',
-  receivingYards: 'Rec Yds', receivingTDs: 'Rec TD', receptions: 'REC',
-  sacks: 'Sacks', interceptions: 'INT', tackles: 'TKL',
-  battingAvg: 'AVG', homeRuns: 'HR', rbi: 'RBI', ops: 'OPS',
-  era: 'ERA', whip: 'WHIP', strikeoutsPerNine: 'K/9', wins: 'W', saves: 'SV',
-  goals: 'G', nhlPoints: 'PTS', plusMinus: '+/-', savePct: 'SV%', goalsAgainstAvg: 'GAA',
+  turnovers: 'TO', fieldGoalPct: 'FG%', threePointPct: '3P%', freeThrowPct: 'FT%',
+  // NFL
+  passingYards: 'Pass Yds', passingTDs: 'TD', passerRating: 'RTG', interceptions: 'INT',
+  rushingYards: 'Rush Yds', rushingTDs: 'Rush TD', receptions: 'REC',
+  receivingYards: 'Rec Yds', receivingTDs: 'Rec TD',
+  sacks: 'SCK', tackles: 'TKL', forcedFumbles: 'FF', passDeflections: 'PD',
+  // MLB
+  battingAvg: 'AVG', homeRuns: 'HR', rbi: 'RBI', ops: 'OPS', stolenBases: 'SB', onBasePct: 'OBP',
+  era: 'ERA', whip: 'WHIP', strikeoutsPerNine: 'K/9', wins: 'W', saves: 'SV', inningsPitched: 'IP',
+  // NHL
+  goals: 'G', nhlAssists: 'A', nhlPoints: 'PTS', plusMinus: '+/-',
+  powerPlayGoals: 'PPG', savePct: 'SV%', goalsAgainstAvg: 'GAA', penaltyMinutes: 'PIM',
 };
 
 function formatStatValue(key: string, value: number | undefined): string {
@@ -30,6 +35,7 @@ function formatStatValue(key: string, value: number | undefined): string {
   if (['ops', 'savePct'].includes(key)) {
     return value >= 1 ? value.toFixed(3) : value.toFixed(3).replace('0.', '.');
   }
+  if (key === 'plusMinus') return value >= 0 ? `+${value}` : String(value);
   if (['era', 'whip', 'goalsAgainstAvg'].includes(key)) {
     return value.toFixed(2);
   }
@@ -45,20 +51,32 @@ function getKeyStats(player: Player, sport: Sport): [string, number | undefined]
     case 'nba':
       return [
         ['points', s.points], ['rebounds', s.rebounds], ['assists', s.assists],
-        ['fieldGoalPct', s.fieldGoalPct],
+        ['steals', s.steals], ['blocks', s.blocks], ['fieldGoalPct', s.fieldGoalPct],
+        ['threePointPct', s.threePointPct], ['freeThrowPct', s.freeThrowPct],
       ];
     case 'nfl':
-      if (player.position === 'QB') return [['passingYards', s.passingYards], ['passingTDs', s.passingTDs], ['passerRating', s.passerRating]];
-      if (player.position === 'RB') return [['rushingYards', s.rushingYards], ['rushingTDs', s.rushingTDs]];
-      if (player.position === 'WR' || player.position === 'TE') return [['receivingYards', s.receivingYards], ['receivingTDs', s.receivingTDs], ['receptions', s.receptions]];
-      if (player.position === 'DE' || player.position === 'DT') return [['sacks', s.sacks], ['tackles', s.tackles]];
-      return [['sacks', s.sacks], ['tackles', s.tackles], ['interceptions', s.interceptions]];
+      if (player.position === 'QB')
+        return [['passingYards', s.passingYards], ['passingTDs', s.passingTDs], ['interceptions', s.interceptions], ['passerRating', s.passerRating]];
+      if (player.position === 'RB')
+        return [['rushingYards', s.rushingYards], ['rushingTDs', s.rushingTDs], ['receptions', s.receptions]];
+      if (player.position === 'WR' || player.position === 'TE')
+        return [['receptions', s.receptions], ['receivingYards', s.receivingYards], ['receivingTDs', s.receivingTDs]];
+      if (player.position === 'DE' || player.position === 'DT')
+        return [['sacks', s.sacks], ['tackles', s.tackles], ['forcedFumbles', s.forcedFumbles]];
+      if (player.position === 'LB')
+        return [['tackles', s.tackles], ['sacks', s.sacks], ['interceptions', s.interceptions], ['forcedFumbles', s.forcedFumbles]];
+      // CB / S
+      return [['interceptions', s.interceptions], ['tackles', s.tackles], ['passDeflections', s.passDeflections]];
     case 'mlb':
-      if (player.positionGroup === 'pitching') return [['era', s.era], ['whip', s.whip], ['wins', s.wins], ['saves', s.saves]];
-      return [['battingAvg', s.battingAvg], ['homeRuns', s.homeRuns], ['rbi', s.rbi], ['ops', s.ops]];
+      if (player.positionGroup === 'pitching')
+        return [['era', s.era], ['whip', s.whip], ['strikeoutsPerNine', s.strikeoutsPerNine], ['wins', s.wins], ['saves', s.saves], ['inningsPitched', s.inningsPitched]];
+      return [['battingAvg', s.battingAvg], ['homeRuns', s.homeRuns], ['rbi', s.rbi], ['ops', s.ops], ['onBasePct', s.onBasePct], ['stolenBases', s.stolenBases]];
     case 'nhl':
-      if (player.position === 'G_NHL') return [['savePct', s.savePct], ['goalsAgainstAvg', s.goalsAgainstAvg]];
-      return [['goals', s.goals], ['nhlPoints', s.nhlPoints], ['plusMinus', s.plusMinus]];
+      if (player.position === 'G_NHL')
+        return [['savePct', s.savePct], ['goalsAgainstAvg', s.goalsAgainstAvg]];
+      if (player.positionGroup === 'defense')
+        return [['nhlPoints', s.nhlPoints], ['goals', s.goals], ['nhlAssists', s.nhlAssists], ['plusMinus', s.plusMinus], ['powerPlayGoals', s.powerPlayGoals]];
+      return [['goals', s.goals], ['nhlAssists', s.nhlAssists], ['nhlPoints', s.nhlPoints], ['plusMinus', s.plusMinus], ['powerPlayGoals', s.powerPlayGoals]];
     default:
       return [];
   }

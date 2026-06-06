@@ -36,20 +36,25 @@ export const NBA_TEAMS: HistoricalTeam[] = [
   { id: '30', name: 'Wizards', city: 'Washington', abbreviation: 'WAS', sport: 'nba', primaryColor: '#002B5C', secondaryColor: '#E31837' },
 ];
 
-export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, apiKey?: string): Promise<Player[]> {
-  if (!apiKey) {
-    return generateFallbackNBAPlayers(team, era);
-  }
+// Deterministic name pools for fallback
+const FIRST_NAMES = ['Marcus', 'DeShawn', 'Tyrell', 'Jordan', 'Andre', 'Kevin', 'Darius', 'Malik', 'Jalen', 'Trae', 'Donovan', 'Bam', 'Jaylen', 'Brandon', 'Miles', 'Gary', 'Isaiah', 'Chris', 'Paul', 'Tony', 'Dwight', 'Shawn', 'Allen', 'Grant', 'Chauncey'];
+const LAST_NAMES = ['Williams', 'Johnson', 'Mitchell', 'Davis', 'Brown', 'Thompson', 'Jackson', 'Harris', 'Robinson', 'Walker', 'Carter', 'Edwards', 'Green', 'Baker', 'Nelson', 'Hill', 'Thomas', 'Martin', 'Scott', 'Young', 'Collins', 'Parker', 'Adams', 'Moore', 'White'];
 
+export function nbaFakeName(seed: number): string {
+  return `${FIRST_NAMES[seed % FIRST_NAMES.length]} ${LAST_NAMES[(seed * 7 + 3) % LAST_NAMES.length]}`;
+}
+
+export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, apiKey?: string): Promise<Player[]> {
+  if (!apiKey) return generateFallbackNBAPlayers(team, era);
+
+  const season = Math.min(Math.round((era.startYear + era.endYear) / 2), 2023);
   const players: Player[] = [];
-  const midYear = Math.round((era.startYear + era.endYear) / 2);
 
   try {
-    // Fetch season stats for this team/year
     const statsUrl = new URL(`${NBA_API}/stats`);
     statsUrl.searchParams.set('team_ids[]', team.id);
-    statsUrl.searchParams.set('season', String(midYear));
-    statsUrl.searchParams.set('per_page', '50');
+    statsUrl.searchParams.set('season', String(season));
+    statsUrl.searchParams.set('per_page', '100');
 
     const res = await fetch(statsUrl.toString(), {
       headers: { Authorization: apiKey },
@@ -57,42 +62,77 @@ export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, apiKey?: s
     });
 
     if (!res.ok) throw new Error(`NBA API: ${res.status}`);
-
     const data = await res.json();
-    const stats: {
+
+    type RawStat = {
       player: { id: number; first_name: string; last_name: string; position: string };
       pts: number; reb: number; ast: number; stl: number; blk: number;
-      fg_pct: number; fg3_pct: number; ft_pct: number;
-    }[] = data.data ?? [];
+      fg_pct: number; fg3_pct: number; ft_pct: number; turnover: number;
+    };
 
-    const grouped = new Map<number, typeof stats[0]>();
-    for (const s of stats) {
-      const existing = grouped.get(s.player.id);
-      if (!existing || s.pts > existing.pts) grouped.set(s.player.id, s);
+    const rawStats: RawStat[] = data.data ?? [];
+
+    // Aggregate per-game stats into true season averages
+    const totals = new Map<number, {
+      info: RawStat['player'];
+      sum: { pts: number; reb: number; ast: number; stl: number; blk: number; fg_pct: number; fg3_pct: number; ft_pct: number; turnover: number };
+      count: number;
+    }>();
+
+    for (const s of rawStats) {
+      if (!s.player?.id) continue;
+      const existing = totals.get(s.player.id);
+      if (existing) {
+        existing.sum.pts      += s.pts ?? 0;
+        existing.sum.reb      += s.reb ?? 0;
+        existing.sum.ast      += s.ast ?? 0;
+        existing.sum.stl      += s.stl ?? 0;
+        existing.sum.blk      += s.blk ?? 0;
+        existing.sum.turnover += s.turnover ?? 0;
+        existing.sum.fg_pct   += s.fg_pct ?? 0;
+        existing.sum.fg3_pct  += s.fg3_pct ?? 0;
+        existing.sum.ft_pct   += s.ft_pct ?? 0;
+        existing.count++;
+      } else {
+        totals.set(s.player.id, {
+          info: s.player,
+          sum: {
+            pts: s.pts ?? 0, reb: s.reb ?? 0, ast: s.ast ?? 0,
+            stl: s.stl ?? 0, blk: s.blk ?? 0, turnover: s.turnover ?? 0,
+            fg_pct: s.fg_pct ?? 0, fg3_pct: s.fg3_pct ?? 0, ft_pct: s.ft_pct ?? 0,
+          },
+          count: 1,
+        });
+      }
     }
 
-    for (const s of Array.from(grouped.values())) {
-      const posMap: Record<string, Player['position']> = {
-        'PG': 'PG', 'SG': 'SG', 'SF': 'SF', 'PF': 'PF', 'C': 'C',
-        'G': 'SG', 'F': 'SF', 'F-G': 'SG', 'G-F': 'SF', 'F-C': 'PF', 'C-F': 'C',
-      };
-      const position = posMap[s.player.position] ?? 'SF';
+    const posMap: Record<string, Player['position']> = {
+      PG: 'PG', SG: 'SG', SF: 'SF', PF: 'PF', C: 'C',
+      G: 'SG', F: 'SF', 'F-G': 'SG', 'G-F': 'SF', 'F-C': 'PF', 'C-F': 'C',
+    };
+
+    for (const { info, sum, count } of Array.from(totals.values())) {
+      if (count < 5) continue;
+      const avg = (v: number) => Math.round((v / count) * 10) / 10;
+      const avgPct = (v: number) => Math.round((v / count) * 1000) / 1000;
+      const position = posMap[info.position] ?? 'SF';
 
       const p: Player = {
-        id: `nba-${s.player.id}-${midYear}`,
-        name: `${s.player.first_name} ${s.player.last_name}`,
+        id: `nba-${info.id}-${season}`,
+        name: `${info.first_name} ${info.last_name}`,
         position,
         positionGroup: 'offense',
         yearsWithTeam: `${era.startYear}–${era.endYear}`,
         stats: {
-          points: s.pts,
-          rebounds: s.reb,
-          assists: s.ast,
-          steals: s.stl,
-          blocks: s.blk,
-          fieldGoalPct: s.fg_pct,
-          threePointPct: s.fg3_pct,
-          freeThrowPct: s.ft_pct,
+          points: avg(sum.pts),
+          rebounds: avg(sum.reb),
+          assists: avg(sum.ast),
+          steals: avg(sum.stl),
+          blocks: avg(sum.blk),
+          turnovers: avg(sum.turnover),
+          fieldGoalPct: avgPct(sum.fg_pct),
+          threePointPct: avgPct(sum.fg3_pct),
+          freeThrowPct: avgPct(sum.ft_pct),
         },
         playerScore: 0,
       };
@@ -104,37 +144,40 @@ export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, apiKey?: s
   }
 
   if (players.length < 5) return generateFallbackNBAPlayers(team, era);
-
   return players.sort((a, b) => b.playerScore - a.playerScore).slice(0, 20);
 }
 
 function generateFallbackNBAPlayers(team: HistoricalTeam, era: Era): Player[] {
-  const positions: Array<{ pos: Player['position']; label: string }> = [
-    { pos: 'PG', label: 'PG' }, { pos: 'PG', label: 'PG' },
-    { pos: 'SG', label: 'SG' }, { pos: 'SG', label: 'SG' },
-    { pos: 'SF', label: 'SF' }, { pos: 'SF', label: 'SF' },
-    { pos: 'PF', label: 'PF' }, { pos: 'PF', label: 'PF' },
-    { pos: 'C', label: 'C' }, { pos: 'C', label: 'C' },
-    { pos: 'SF', label: 'SF' }, { pos: 'PF', label: 'PF' },
+  const positions: Array<{ pos: Player['position']; idx: number }> = [
+    { pos: 'PG', idx: 0 }, { pos: 'PG', idx: 1 },
+    { pos: 'SG', idx: 2 }, { pos: 'SG', idx: 3 },
+    { pos: 'SF', idx: 4 }, { pos: 'SF', idx: 5 },
+    { pos: 'PF', idx: 6 }, { pos: 'PF', idx: 7 },
+    { pos: 'C',  idx: 8 }, { pos: 'C',  idx: 9 },
+    { pos: 'SF', idx: 10 }, { pos: 'PF', idx: 11 },
   ];
 
-  return positions.map((pos, i) => {
-    const pts = 12 + Math.round(Math.random() * 18);
+  const teamSeed = parseInt(team.id, 10) * 13;
+
+  return positions.map(({ pos, idx }) => {
+    const s = teamSeed + idx;
+    const pts = 10 + (s % 19);
     const p: Player = {
-      id: `nba-fb-${team.id}-${i}`,
-      name: `${team.city} ${pos.label} ${i + 1}`,
-      position: pos.pos,
+      id: `nba-fb-${team.id}-${idx}`,
+      name: nbaFakeName(s),
+      position: pos,
       positionGroup: 'offense',
       yearsWithTeam: `${era.startYear}–${era.endYear}`,
       stats: {
         points: pts,
-        rebounds: 3 + Math.round(Math.random() * 7),
-        assists: 2 + Math.round(Math.random() * 6),
-        steals: Math.round(Math.random() * 2 * 10) / 10,
-        blocks: Math.round(Math.random() * 1.5 * 10) / 10,
-        fieldGoalPct: 0.42 + Math.round(Math.random() * 12) / 100,
-        threePointPct: 0.31 + Math.round(Math.random() * 12) / 100,
-        freeThrowPct: 0.70 + Math.round(Math.random() * 20) / 100,
+        rebounds: 3 + (s * 3 % 8),
+        assists: 2 + (s * 5 % 7),
+        steals: Math.round(((s % 20) / 10) * 10) / 10,
+        blocks: Math.round(((s * 2 % 15) / 10) * 10) / 10,
+        turnovers: Math.round((1 + s % 3) * 10) / 10,
+        fieldGoalPct: 0.42 + (s * 7 % 13) / 100,
+        threePointPct: 0.31 + (s * 11 % 13) / 100,
+        freeThrowPct: 0.70 + (s * 9 % 21) / 100,
       },
       playerScore: 0,
     };

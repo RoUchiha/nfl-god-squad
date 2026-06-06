@@ -57,6 +57,9 @@ export interface PlayerStats {
   interceptions?: number;
   tackles?: number;
   forcedFumbles?: number;
+  passDeflections?: number;
+  // NBA extra
+  turnovers?: number;
   // MLB Batting
   battingAvg?: number;
   homeRuns?: number;

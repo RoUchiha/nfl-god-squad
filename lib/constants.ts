@@ -28,9 +28,9 @@ export const SPORT_CONFIG: Record<Sport, {
     primaryColor: '#013369',
     accentColor: '#D50A0A',
     bgColor: '#000818',
-    gamesInSeason: 17,
+    gamesInSeason: 20,
     hasModes: true,
-    tagline: 'Can your squad go 17-0?',
+    tagline: 'Can your squad go 20-0?',
   },
   mlb: {
     label: 'MLB',

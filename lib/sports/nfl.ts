@@ -160,41 +160,51 @@ function extractNFLStats(position: Player['position'], stats: Record<string, num
   }
 }
 
+const NFL_FIRST = ['Dak', 'Lamar', 'Josh', 'Patrick', 'Justin', 'Jalen', 'Trevor', 'Tua', 'Sam', 'Derek', 'Marcus', 'Tyreek', 'Davante', 'Stefon', 'Travis', 'Dalton', 'Micah', 'Myles', 'Von', 'Aaron', 'Richard', 'Derrick', 'Christian', 'Nick', 'Roquan'];
+const NFL_LAST = ['Smith', 'Jackson', 'Allen', 'Mahomes', 'Herbert', 'Hurts', 'Lawrence', 'Tagovailoa', 'Darnold', 'Carr', 'Mariota', 'Hill', 'Adams', 'Diggs', 'Kelce', 'Schultz', 'Parsons', 'Garrett', 'Miller', 'Donald', 'Sherman', 'Henry', 'McCaffrey', 'Chubb', 'Walker'];
+
+function nflFakeName(seed: number): string {
+  return `${NFL_FIRST[seed % NFL_FIRST.length]} ${NFL_LAST[(seed * 7 + 5) % NFL_LAST.length]}`;
+}
+
 function generateFallbackNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
-  const templates: Array<{ pos: Player['position']; group: Player['positionGroup']; label: string }> = [
-    { pos: 'QB', group: 'offense', label: 'QB' },
-    { pos: 'RB', group: 'offense', label: 'RB' },
-    { pos: 'WR', group: 'offense', label: 'WR1' },
-    { pos: 'WR', group: 'offense', label: 'WR2' },
-    { pos: 'WR', group: 'offense', label: 'WR3' },
-    { pos: 'TE', group: 'offense', label: 'TE' },
-    { pos: 'K', group: 'offense', label: 'K' },
-    { pos: 'DE', group: 'defense', label: 'DE1' },
-    { pos: 'DE', group: 'defense', label: 'DE2' },
-    { pos: 'DT', group: 'defense', label: 'DT' },
-    { pos: 'LB', group: 'defense', label: 'LB1' },
-    { pos: 'LB', group: 'defense', label: 'LB2' },
-    { pos: 'CB', group: 'defense', label: 'CB1' },
-    { pos: 'CB', group: 'defense', label: 'CB2' },
-    { pos: 'S', group: 'defense', label: 'S' },
+  const templates: Array<{ pos: Player['position']; group: Player['positionGroup']; idx: number }> = [
+    { pos: 'QB', group: 'offense', idx: 0 },
+    { pos: 'RB', group: 'offense', idx: 1 },
+    { pos: 'WR', group: 'offense', idx: 2 },
+    { pos: 'WR', group: 'offense', idx: 3 },
+    { pos: 'WR', group: 'offense', idx: 4 },
+    { pos: 'TE', group: 'offense', idx: 5 },
+    { pos: 'K',  group: 'offense', idx: 6 },
+    { pos: 'DE', group: 'defense', idx: 7 },
+    { pos: 'DE', group: 'defense', idx: 8 },
+    { pos: 'DT', group: 'defense', idx: 9 },
+    { pos: 'LB', group: 'defense', idx: 10 },
+    { pos: 'LB', group: 'defense', idx: 11 },
+    { pos: 'CB', group: 'defense', idx: 12 },
+    { pos: 'CB', group: 'defense', idx: 13 },
+    { pos: 'S',  group: 'defense', idx: 14 },
   ];
 
-  return templates.map((tmpl, i) => {
+  const teamSeed = parseInt(team.id, 10) * 11;
+
+  return templates.map(({ pos, group, idx }) => {
+    const s = teamSeed + idx;
     let stats: Player['stats'] = {};
-    if (tmpl.pos === 'QB') stats = { passingYards: 3500 + Math.round(Math.random() * 1500), passingTDs: 25 + Math.round(Math.random() * 15), passerRating: 85 + Math.round(Math.random() * 15) };
-    else if (tmpl.pos === 'RB') stats = { rushingYards: 800 + Math.round(Math.random() * 800), rushingTDs: 6 + Math.round(Math.random() * 8) };
-    else if (tmpl.pos === 'WR') stats = { receivingYards: 700 + Math.round(Math.random() * 700), receivingTDs: 4 + Math.round(Math.random() * 8), receptions: 55 + Math.round(Math.random() * 40) };
-    else if (tmpl.pos === 'TE') stats = { receivingYards: 500 + Math.round(Math.random() * 500), receivingTDs: 4 + Math.round(Math.random() * 6), receptions: 45 + Math.round(Math.random() * 30) };
-    else if (tmpl.pos === 'DE') stats = { sacks: 8 + Math.round(Math.random() * 10), tackles: 40 + Math.round(Math.random() * 30) };
-    else if (tmpl.pos === 'DT') stats = { sacks: 4 + Math.round(Math.random() * 6), tackles: 35 + Math.round(Math.random() * 25) };
-    else if (tmpl.pos === 'LB') stats = { sacks: 3 + Math.round(Math.random() * 5), tackles: 90 + Math.round(Math.random() * 50), interceptions: Math.round(Math.random() * 3) };
-    else if (tmpl.pos === 'CB' || tmpl.pos === 'S') stats = { interceptions: 1 + Math.round(Math.random() * 4), tackles: 55 + Math.round(Math.random() * 35) };
+    if (pos === 'QB') stats = { passingYards: 3500 + (s * 97 % 1500), passingTDs: 25 + (s * 13 % 15), passerRating: 85 + (s * 7 % 15), interceptions: 6 + (s % 8) };
+    else if (pos === 'RB') stats = { rushingYards: 800 + (s * 83 % 800), rushingTDs: 6 + (s * 11 % 8), receptions: 30 + (s % 30) };
+    else if (pos === 'WR') stats = { receivingYards: 700 + (s * 73 % 700), receivingTDs: 4 + (s * 9 % 8), receptions: 55 + (s % 40) };
+    else if (pos === 'TE') stats = { receivingYards: 500 + (s * 61 % 500), receivingTDs: 4 + (s % 6), receptions: 45 + (s % 30) };
+    else if (pos === 'DE') stats = { sacks: 8 + (s * 3 % 10), tackles: 40 + (s * 5 % 30), forcedFumbles: s % 4 };
+    else if (pos === 'DT') stats = { sacks: 4 + (s * 2 % 6), tackles: 35 + (s * 4 % 25), forcedFumbles: s % 3 };
+    else if (pos === 'LB') stats = { sacks: 3 + (s % 5), tackles: 90 + (s * 7 % 50), interceptions: s % 3, forcedFumbles: s % 3 };
+    else if (pos === 'CB' || pos === 'S') stats = { interceptions: 1 + (s * 3 % 4), tackles: 55 + (s * 6 % 35), passDeflections: 5 + (s % 8) };
 
     const p: Player = {
-      id: `nfl-fb-${team.id}-${i}`,
-      name: `${team.city} ${tmpl.label}`,
-      position: tmpl.pos,
-      positionGroup: tmpl.group,
+      id: `nfl-fb-${team.id}-${idx}`,
+      name: nflFakeName(s),
+      position: pos,
+      positionGroup: group,
       yearsWithTeam: `${era.startYear}–${era.endYear}`,
       stats,
       playerScore: 0,
