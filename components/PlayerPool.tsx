@@ -15,11 +15,16 @@ interface Props {
   pickLocked?: boolean;
 }
 
+const SKELETON_COUNT = 8;
+
 export default function PlayerPool({ players, isLoading, selectedIds, onSelect, sport, mode, highlightPositions, activePick, pickLocked }: Props) {
-  // Filter player pool for NFL offense/defense mode
   const visiblePlayers = (sport === 'nfl' && mode && mode !== 'combined')
     ? players.filter(p => p.positionGroup === mode)
     : players;
+
+  // When locked or loading, render only skeletons — no clickable DOM nodes exist.
+  // CSS pointer-events tricks can be bypassed; removing the elements cannot be.
+  const showSkeleton = isLoading || pickLocked;
 
   return (
     <div className="flex flex-col">
@@ -35,14 +40,14 @@ export default function PlayerPool({ players, isLoading, selectedIds, onSelect, 
             <p className="text-xs text-yellow-400/80 mt-0.5">Rolling next pick…</p>
           )}
         </div>
-        {!isLoading && visiblePlayers.length > 0 && !activePick && (
+        {!showSkeleton && visiblePlayers.length > 0 && !activePick && (
           <span className="text-xs text-gray-600">{visiblePlayers.length} players</span>
         )}
       </div>
 
-      {isLoading ? (
+      {showSkeleton ? (
         <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <div key={i} className="skeleton h-20 rounded-lg" />
           ))}
         </div>
@@ -51,7 +56,7 @@ export default function PlayerPool({ players, isLoading, selectedIds, onSelect, 
           No players loaded yet
         </div>
       ) : (
-        <div className={`space-y-1.5 overflow-y-auto max-h-[60vh] lg:max-h-[calc(100vh-280px)] pr-1 ${pickLocked ? 'opacity-40 pointer-events-none' : ''}`}>
+        <div className="space-y-1.5 overflow-y-auto max-h-[60vh] lg:max-h-[calc(100vh-280px)] pr-1">
           {visiblePlayers.map(player => (
             <PlayerCard
               key={player.id}
