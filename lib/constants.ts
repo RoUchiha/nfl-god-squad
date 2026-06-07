@@ -396,7 +396,7 @@ export function generateTeamEras(team: HistoricalTeam): Era[] {
   const firstEraStart = Math.max(sportMin, Math.floor(founded / 5) * 5);
   const eras: Era[] = [];
 
-  for (let start = firstEraStart; start <= 2020; start += 5) {
+  for (let start = firstEraStart; start <= 2025; start += 5) {
     const end = start + 4;
     const id = `${team.sport}-${team.id}-${start}`;
     const custom = ERA_DATA[id];
