@@ -1,75 +1,124 @@
 'use client';
 
+/**
+ * PlayerPool — two-step draft UI:
+ *   1. Click a card to SELECT it (highlight only, no commit)
+ *   2. Click the DRAFT button to COMMIT the pick
+ *
+ * This eliminates the multi-pick bug by design: player cards never directly
+ * trigger a pick. Only the single DRAFT button does, and it disables itself
+ * immediately on first click before the parent re-renders.
+ */
+
+import { useState, useCallback } from 'react';
 import type { Player, Sport, DraftMode } from '@/lib/types';
 import PlayerCard from './PlayerCard';
 
 interface Props {
   players: Player[];
   isLoading: boolean;
-  selectedIds: Set<string>;
-  onSelect: (player: Player) => void;
   sport: Sport;
   mode?: DraftMode;
-  highlightPositions: Player['position'][] | null;
-  activePick: Player | null;
-  pickLocked?: boolean;
+  onDraft: (player: Player) => void;
+  onSkip: () => void;
 }
 
 const SKELETON_COUNT = 8;
 
-export default function PlayerPool({ players, isLoading, selectedIds, onSelect, sport, mode, highlightPositions, activePick, pickLocked }: Props) {
+export default function PlayerPool({ players, isLoading, sport, mode, onDraft, onSkip }: Props) {
+  const [selected, setSelected] = useState<Player | null>(null);
+  const [draftFired, setDraftFired] = useState(false);
+
   const visiblePlayers = (sport === 'nfl' && mode && mode !== 'combined')
     ? players.filter(p => p.positionGroup === mode)
     : players;
 
-  // When locked or loading, render only skeletons — no clickable DOM nodes exist.
-  // CSS pointer-events tricks can be bypassed; removing the elements cannot be.
-  const showSkeleton = isLoading || pickLocked;
+  const handleCardClick = useCallback((player: Player) => {
+    if (draftFired) return;
+    // Toggle selection — click same card again to deselect
+    setSelected(prev => prev?.id === player.id ? null : player);
+  }, [draftFired]);
+
+  const handleDraft = useCallback(() => {
+    if (!selected || draftFired) return;
+    // Disable immediately — synchronous, before parent re-renders
+    setDraftFired(true);
+    onDraft(selected);
+  }, [selected, draftFired, onDraft]);
+
+  const handleSkip = useCallback(() => {
+    if (draftFired) return;
+    setDraftFired(true);
+    onSkip();
+  }, [draftFired, onSkip]);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Player Pool</h2>
-          {activePick && (
+          {selected && !draftFired && (
             <p className="text-xs text-yellow-400 mt-0.5">
-              Placing <span className="font-semibold">{activePick.name}</span> — choose a slot →
+              <span className="font-semibold">{selected.name}</span> selected — confirm below ↓
             </p>
           )}
-          {pickLocked && !activePick && (
-            <p className="text-xs text-yellow-400/80 mt-0.5">Rolling next pick…</p>
-          )}
         </div>
-        {!showSkeleton && visiblePlayers.length > 0 && !activePick && (
+        {!isLoading && visiblePlayers.length > 0 && (
           <span className="text-xs text-gray-600">{visiblePlayers.length} players</span>
         )}
       </div>
 
-      {showSkeleton ? (
-        <div className="space-y-2">
+      {/* Card list */}
+      {isLoading ? (
+        <div className="space-y-2 flex-1">
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <div key={i} className="skeleton h-20 rounded-lg" />
           ))}
         </div>
       ) : visiblePlayers.length === 0 ? (
-        <div className="glass rounded-lg p-8 text-center text-gray-600 text-sm">
-          No players loaded yet
+        <div className="glass rounded-lg p-8 text-center text-gray-600 text-sm flex-1">
+          No players loaded
         </div>
       ) : (
-        <div className="space-y-1.5 overflow-y-auto max-h-[60vh] lg:max-h-[calc(100vh-280px)] pr-1">
+        <div className="space-y-1.5 overflow-y-auto max-h-[48vh] lg:max-h-[calc(100vh-340px)] pr-1 flex-1">
           {visiblePlayers.map(player => (
             <PlayerCard
               key={player.id}
               player={player}
               sport={sport}
-              isSelected={selectedIds.has(player.id)}
-              isHighlighted={
-                highlightPositions !== null &&
-                highlightPositions.includes(player.position)
-              }
-              onSelect={onSelect}
+              isSelected={false}
+              isHighlighted={selected?.id === player.id}
+              onSelect={handleCardClick}
             />
           ))}
+        </div>
+      )}
+
+      {/* Draft / Skip controls — always visible at bottom */}
+      {!isLoading && (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={handleDraft}
+            disabled={!selected || draftFired}
+            className={`
+              flex-1 py-3 rounded-xl font-bold text-sm transition-all
+              ${selected && !draftFired
+                ? 'bg-white text-black hover:bg-gray-200 active:scale-[0.98] cursor-pointer'
+                : 'bg-white/5 text-gray-600 cursor-not-allowed'
+              }
+            `}
+          >
+            {draftFired ? '✓ Drafted' : selected ? `DRAFT  ${selected.name}` : 'Select a player'}
+          </button>
+          <button
+            onClick={handleSkip}
+            disabled={draftFired}
+            className="px-4 py-3 rounded-xl text-sm text-gray-500 hover:text-gray-300 border border-white/5 hover:border-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Skip this era → next pick"
+          >
+            Skip →
+          </button>
         </div>
       )}
     </div>
