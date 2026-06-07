@@ -5,6 +5,8 @@ const NHL_API = 'https://api-web.nhle.com/v1';
 const NHL_STATS_API = 'https://api.nhle.com/stats/rest/en';
 
 export const NHL_TEAMS: HistoricalTeam[] = [
+  { id: 'ANA', name: 'Ducks', city: 'Anaheim', abbreviation: 'ANA', sport: 'nhl', primaryColor: '#F47A38', secondaryColor: '#B9975B' },
+  { id: 'ARI', name: 'Coyotes', city: 'Arizona', abbreviation: 'ARI', sport: 'nhl', primaryColor: '#8C2633', secondaryColor: '#E2D5BA' },
   { id: 'BOS', name: 'Bruins', city: 'Boston', abbreviation: 'BOS', sport: 'nhl', primaryColor: '#FFB81C', secondaryColor: '#000000' },
   { id: 'BUF', name: 'Sabres', city: 'Buffalo', abbreviation: 'BUF', sport: 'nhl', primaryColor: '#003087', secondaryColor: '#FCB514' },
   { id: 'CGY', name: 'Flames', city: 'Calgary', abbreviation: 'CGY', sport: 'nhl', primaryColor: '#C8102E', secondaryColor: '#F1BE48' },

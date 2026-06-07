@@ -162,10 +162,16 @@ export default function GameContainer() {
   // When user clicks a player from the pool
   const handleSelectPlayer = (player: Player) => {
     if (swapMode) {
-      // Swap mode: directly place in the swap slot
-      setSlots(prev => prev.map(s => s.id === swapMode.slotId ? { ...s, player } : s));
+      // Swap mode: directly place in the swap slot, then auto-advance
+      const newSlots = slots.map(s => s.id === swapMode.slotId ? { ...s, player } : s);
+      setSlots(newSlots);
       setSwapMode(null);
       setJustPlacedSlotId(swapMode.slotId);
+      const newFilled = newSlots.filter(s => s.required && s.player).length;
+      const newTotal = newSlots.filter(s => s.required).length;
+      if (newFilled < newTotal) {
+        loadNextPick(sport, usedEraIdsRef.current);
+      }
       return;
     }
     // Open the placement picker
@@ -173,11 +179,17 @@ export default function GameContainer() {
     setJustPlacedSlotId(null);
   };
 
-  // When user picks a slot in the placement picker
+  // When user picks a slot in the placement picker — auto-advance to next era
   const handlePlacePlayer = (player: Player, slotId: string) => {
-    setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player } : s));
+    const newSlots = slots.map(s => s.id === slotId ? { ...s, player } : s);
+    setSlots(newSlots);
     setPlayerToPlace(null);
     setJustPlacedSlotId(slotId);
+    const newFilled = newSlots.filter(s => s.required && s.player).length;
+    const newTotal = newSlots.filter(s => s.required).length;
+    if (newFilled < newTotal) {
+      loadNextPick(sport, usedEraIdsRef.current);
+    }
   };
 
   const handleRemovePlayer = (slotId: string) => {
@@ -292,8 +304,8 @@ export default function GameContainer() {
   // Positions the placement picker should highlight in the pool
   const highlightPositions = playerToPlace ? [playerToPlace.position] : null;
 
-  // Lock the pool after picking until "Next Pick" is clicked
-  const pickLocked = justPlacedSlotId !== null && !isRosterFull;
+  // Lock the pool while loading the next era (auto-advance) or while roster is full
+  const pickLocked = isLoadingEra || isLoadingPlayers;
 
   return (
     <div className={`theme-${sport} min-h-screen`}>
@@ -343,23 +355,14 @@ export default function GameContainer() {
           </div>
         )}
 
-        {/* Next Pick banner — shown after placing a player */}
-        {justPlacedSlotId && !isRosterFull && (
-          <div className="mb-3 px-4 py-3 bg-green-950/50 border border-green-800/50 rounded-xl text-sm flex items-center justify-between gap-4 animate-fade-in">
-            <div className="flex items-center gap-2">
-              <span className="text-green-400">✓</span>
-              <span className="text-green-300">Player placed!</span>
-              <span className="text-gray-500">
-                {openRequired.length} required slot{openRequired.length !== 1 ? 's' : ''} remaining
-              </span>
-            </div>
-            <button
-              onClick={handleNextPick}
-              disabled={isLoadingEra}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-green-900/60 border border-green-700 text-green-300 hover:bg-green-900 hover:text-green-100 transition-all font-medium text-sm disabled:opacity-50"
-            >
-              {isLoadingEra ? 'Loading...' : '🎲 Next Pick →'}
-            </button>
+        {/* Player placed confirmation — auto-advances, just shows brief feedback */}
+        {justPlacedSlotId && !isRosterFull && !isLoadingEra && !isLoadingPlayers && (
+          <div className="mb-3 px-4 py-2.5 bg-green-950/50 border border-green-800/50 rounded-xl text-sm flex items-center gap-2 animate-fade-in">
+            <span className="text-green-400">✓</span>
+            <span className="text-green-300">Player placed!</span>
+            <span className="text-gray-500">
+              {openRequired.length} slot{openRequired.length !== 1 ? 's' : ''} remaining — rolling next pick…
+            </span>
           </div>
         )}
 

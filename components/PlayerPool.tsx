@@ -32,7 +32,7 @@ export default function PlayerPool({ players, isLoading, selectedIds, onSelect, 
             </p>
           )}
           {pickLocked && !activePick && (
-            <p className="text-xs text-green-400 mt-0.5">Player placed — click Next Pick to continue</p>
+            <p className="text-xs text-yellow-400/80 mt-0.5">Rolling next pick…</p>
           )}
         </div>
         {!isLoading && visiblePlayers.length > 0 && !activePick && (
