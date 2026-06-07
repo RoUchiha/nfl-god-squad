@@ -29,7 +29,10 @@ import PlayerPlacementPicker from './PlayerPlacementPicker';
 type PickPhase = 'loading' | 'ready' | 'placing' | 'complete';
 
 export default function GameContainer() {
-  const loadIdRef = useRef(0);
+  const loadIdRef    = useRef(0);
+  // Prevents handleDraft from firing more than once per pick — guards against
+  // stale-closure double-calls even if PlayerPool's own ref somehow lets one through.
+  const draftGuardRef = useRef(false);
 
   // ── Sport / mode ────────────────────────────────────────────────────────
   const [sport, setSport] = useState<Sport>('nba');
@@ -107,6 +110,8 @@ export default function GameContainer() {
   // was shuffled once at game start.
   // ─────────────────────────────────────────────────────────────────────────
   const advancePick = useCallback(async (queue: EraQueueItem[]) => {
+    // Reset the draft guard so the next pick can be committed
+    draftGuardRef.current = false;
     const myId = ++loadIdRef.current;
     setPickPhase('loading');
     setIsLoadingEra(true);
@@ -191,6 +196,16 @@ export default function GameContainer() {
   // onDraft — called by PlayerPool DRAFT button (single entry point)
   // ─────────────────────────────────────────────────────────────────────────
   const handleDraft = useCallback((player: Player) => {
+    // Hard gate — ref is synchronous, never stale, reset at start of each advancePick
+    if (draftGuardRef.current) return;
+    draftGuardRef.current = true;
+
+    // Idempotency: player already in roster → skip to next pick instead of double-placing
+    if (slots.some(s => s.player?.id === player.id)) {
+      advancePick(eraQueueRef.current);
+      return;
+    }
+
     if (swapMode) {
       const newSlots = slots.map(s => s.id === swapMode.slotId ? { ...s, player } : s);
       setSwapMode(null);
@@ -232,7 +247,7 @@ export default function GameContainer() {
     advancePick(eraQueueRef.current);
   }, [advancePick]);
 
-  // Placement picker: slot chosen
+  // Placement picker: slot chosen (draftGuard was already set by handleDraft; keep it locked until advancePick resets it)
   const handlePlacePlayer = useCallback((player: Player, slotId: string) => {
     const newSlots = slots.map(s => s.id === slotId ? { ...s, player } : s);
     setJustPlacedSlotId(slotId);
