@@ -1,5 +1,6 @@
 import type { Player, HistoricalTeam, Era } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
+import { fetchESPNCurrentRoster, LIVE_ERA_THRESHOLD } from './nba-espn';
 
 export const NBA_TEAMS: HistoricalTeam[] = [
   { id: '1', name: 'Hawks', city: 'Atlanta', abbreviation: 'ATL', sport: 'nba', primaryColor: '#E03A3E', secondaryColor: '#C1D32F' },
@@ -405,7 +406,15 @@ function fakeName(seed: number): string {
 export const NBA_CURATED_ERA_KEYS = Object.keys(NBA_HISTORICAL_ROSTERS);
 
 export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, _apiKey?: string): Promise<Player[]> {
-  // Check hardcoded historical roster first
+  // For current eras (2020+), try ESPN live roster first so trade news is reflected
+  if (era.startYear >= LIVE_ERA_THRESHOLD) {
+    const espnPlayers = await fetchESPNCurrentRoster(team, era);
+    if (espnPlayers && espnPlayers.length >= 5) {
+      return espnPlayers;
+    }
+  }
+
+  // Check hardcoded historical roster
   const key = `${team.id}-${era.id}`;
   if (NBA_HISTORICAL_ROSTERS[key]) {
     return NBA_HISTORICAL_ROSTERS[key].map((hp, i) => {
@@ -427,6 +436,7 @@ export async function fetchNBAPlayers(team: HistoricalTeam, era: Era, _apiKey?: 
     }).sort((a, b) => b.playerScore - a.playerScore);
   }
 
+  // Final fallback: generate plausible-looking players
   return generateFallbackNBAPlayers(team, era);
 }
 
