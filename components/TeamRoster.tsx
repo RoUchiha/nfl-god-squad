@@ -8,10 +8,11 @@ interface Props {
   onRemove: (slotId: string) => void;
   onPositionSwap: (slotId: string, position: Player['position'] | Player['position'][]) => void;
   positionSwapUsed: boolean;
+  locked?: boolean;
   justPlacedSlotId: string | null;
 }
 
-export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, positionSwapUsed, justPlacedSlotId }: Props) {
+export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, positionSwapUsed, locked = false, justPlacedSlotId }: Props) {
   const offenseSlots = slots.filter(s => s.group === 'offense');
   const defenseSlots = slots.filter(s => s.group === 'defense' || s.group === 'pitching' || s.group === 'goalie');
 
@@ -27,6 +28,7 @@ export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, pos
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
             positionSwapUsed={positionSwapUsed}
+            locked={locked}
             justPlacedSlotId={justPlacedSlotId}
           />
         )}
@@ -37,6 +39,7 @@ export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, pos
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
             positionSwapUsed={positionSwapUsed}
+            locked={locked}
             justPlacedSlotId={justPlacedSlotId}
           />
         )}
@@ -51,6 +54,7 @@ function SlotGroup({
   onRemove,
   onPositionSwap,
   positionSwapUsed,
+  locked,
   justPlacedSlotId,
 }: {
   label: string;
@@ -58,6 +62,7 @@ function SlotGroup({
   onRemove: (id: string) => void;
   onPositionSwap: (id: string, pos: Player['position'] | Player['position'][]) => void;
   positionSwapUsed: boolean;
+  locked: boolean;
   justPlacedSlotId: string | null;
 }) {
   return (
@@ -71,6 +76,7 @@ function SlotGroup({
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
             positionSwapUsed={positionSwapUsed}
+            locked={locked}
             isJustPlaced={slot.id === justPlacedSlotId}
           />
         ))}
@@ -84,6 +90,7 @@ function RosterSlot({
   onRemove,
   onPositionSwap,
   positionSwapUsed,
+  locked,
   isJustPlaced,
 }: {
   slot: FilledRosterSlot;
@@ -91,6 +98,7 @@ function RosterSlot({
   onRemove: (id: string) => void;
   onPositionSwap: (id: string, pos: Player['position'] | Player['position'][]) => void;
   positionSwapUsed: boolean;
+  locked: boolean;
 }) {
   const posLabel = Array.isArray(slot.position)
     ? slot.position.map(p => p.replace('_MLB', '').replace('_NHL', '')).join('/')
@@ -132,7 +140,7 @@ function RosterSlot({
       </span>
 
       {/* Swap button (only if reroll available) */}
-      {!positionSwapUsed && (
+      {!locked && !positionSwapUsed && (
         <button
           onClick={() => onPositionSwap(slot.id, slot.position)}
           title="Use position swap reroll"
@@ -143,12 +151,14 @@ function RosterSlot({
       )}
 
       {/* Remove button */}
+      {!locked && (
       <button
         onClick={() => onRemove(slot.id)}
         className="text-gray-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 text-sm ml-0.5"
       >
         ✕
       </button>
+      )}
     </div>
   );
 }

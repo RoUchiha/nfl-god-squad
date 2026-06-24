@@ -26,7 +26,7 @@ export interface HistoricalTeam {
 
 export type Position =
   | 'PG' | 'SG' | 'SF' | 'PF' | 'C'          // NBA
-  | 'QB' | 'RB' | 'WR' | 'TE' | 'K'           // NFL Offense
+  | 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'OL' | 'DEF' // NFL Standard Mode
   | 'DE' | 'DT' | 'LB' | 'CB' | 'S'           // NFL Defense
   | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH' | 'C_MLB' // MLB Batting
   | 'SP' | 'RP' | 'CL'                          // MLB Pitching
@@ -54,12 +54,19 @@ export interface PlayerStats {
   receivingYards?: number;
   receivingTDs?: number;
   receptions?: number;
+  sacksAllowed?: number;
+  lineRank?: number;
+  runBlockRank?: number;
+  passBlockRank?: number;
   // NFL Defense
   sacks?: number;
   interceptions?: number;
   tackles?: number;
   forcedFumbles?: number;
   passDeflections?: number;
+  pointsAllowed?: number;
+  yardsAllowed?: number;
+  takeaways?: number;
   // NBA extra
   turnovers?: number;
   // MLB Batting

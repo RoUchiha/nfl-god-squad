@@ -9,13 +9,11 @@ import type {
 import { getRosterTemplates, SPORT_CONFIG } from '@/lib/constants';
 import { computeTeamGSPR } from '@/lib/algorithms/powerRating';
 import { buildEraQueue, rerollTeam, rerollEra, type EraQueueItem } from '@/lib/eraQueue';
-import SportTabBar from './SportTabBar';
 import EraCard from './EraCard';
 import PlayerPool from './PlayerPool';
 import TeamRoster from './TeamRoster';
 import PowerMeter from './PowerMeter';
 import RerollBar from './RerollBar';
-import ModeSelector from './ModeSelector';
 import SimulationModal from './SimulationModal';
 import PlayerPlacementPicker from './PlayerPlacementPicker';
 
@@ -35,7 +33,7 @@ export default function GameContainer() {
   const draftGuardRef = useRef(false);
 
   // ── Sport / mode ────────────────────────────────────────────────────────
-  const [sport, setSport] = useState<Sport>('nba');
+  const [sport] = useState<Sport>('nfl');
   const [mode, setMode] = useState<DraftMode>('combined');
 
   // ── Era queue — shuffled list of ALL team+era combos for this sport ─────
@@ -67,9 +65,9 @@ export default function GameContainer() {
   const [rerolls, setRerolls]       = useState<RerollState>({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
   const [results, setResults]       = useState<SeasonResults | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [gameplayLocked, setGameplayLocked] = useState(false);
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const sportHasModes  = SPORT_CONFIG[sport].hasModes;
   const cfg            = SPORT_CONFIG[sport];
   const filledRequired = slots.filter(s => s.required && s.player);
   const totalRequired  = slots.filter(s => s.required);
@@ -130,7 +128,7 @@ export default function GameContainer() {
     const next = queue[0];
     if (!next) {
       // Queue exhausted — cycle a fresh queue for the same sport
-      const fresh = buildEraQueue(sport);
+      const fresh = buildEraQueue();
       eraQueueRef.current = fresh;
       setEraQueue(fresh);
       advancePick(fresh);
@@ -160,7 +158,7 @@ export default function GameContainer() {
   // startGame — build a fresh queue and load the first pick
   // ─────────────────────────────────────────────────────────────────────────
   const startGame = useCallback((s: Sport) => {
-    const queue = buildEraQueue(s);
+    const queue = buildEraQueue();
     eraQueueRef.current = queue;
     setEraQueue(queue);
     advancePick(queue);
@@ -176,6 +174,7 @@ export default function GameContainer() {
     setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
     setResults(null);
     setShowResults(false);
+    setGameplayLocked(false);
     setPickPhase('loading');
     startGame(sport);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,6 +202,7 @@ export default function GameContainer() {
   // onDraft — called by PlayerPool DRAFT button (single entry point)
   // ─────────────────────────────────────────────────────────────────────────
   const handleDraft = useCallback((player: Player) => {
+    if (gameplayLocked) return;
     // Hard gate — ref is synchronous, never stale, reset at start of each advancePick
     if (draftGuardRef.current) return;
     draftGuardRef.current = true;
@@ -246,36 +246,39 @@ export default function GameContainer() {
     setPickPhase('placing');
     setPlayerToPlace(player);
     setJustPlacedSlotId(null);
-  }, [slots, swapMode, commitPickAndAdvance, advancePick]);
+  }, [slots, swapMode, commitPickAndAdvance, advancePick, gameplayLocked]);
 
   // onSkip — called by PlayerPool Skip button
   const handleSkip = useCallback(() => {
+    if (gameplayLocked) return;
     setJustPlacedSlotId(null);
     advancePick(eraQueueRef.current);
-  }, [advancePick]);
+  }, [advancePick, gameplayLocked]);
 
   // Placement picker: slot chosen (draftGuard was already set by handleDraft; keep it locked until advancePick resets it)
   const handlePlacePlayer = useCallback((player: Player, slotId: string) => {
+    if (gameplayLocked) return;
     const newSlots = slots.map(s => s.id === slotId ? { ...s, player } : s);
     setJustPlacedSlotId(slotId);
     commitPickAndAdvance(newSlots);
-  }, [slots, commitPickAndAdvance]);
+  }, [slots, commitPickAndAdvance, gameplayLocked]);
 
   // Placement picker: skip
   const handleSkipPlacement = useCallback(() => {
+    if (gameplayLocked) return;
     setPlayerToPlace(null);
     setJustPlacedSlotId(null);
     advancePick(eraQueueRef.current);
-  }, [advancePick]);
+  }, [advancePick, gameplayLocked]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Rerolls — pull from the remaining queue instead of calling the era API
   // ─────────────────────────────────────────────────────────────────────────
   const handleTeamReroll = useCallback(async () => {
-    if (rerolls.teamUsed || !team) return;
+    if (gameplayLocked || rerolls.teamUsed || !team || !era) return;
     setRerolls(r => ({ ...r, teamUsed: true }));
 
-    const result = rerollTeam(eraQueueRef.current, team.id);
+    const result = rerollTeam(eraQueueRef.current, team.id, era.startYear);
     if (!result) return; // no alternative team left — do nothing
     eraQueueRef.current = result.newQueue;
     setEraQueue(result.newQueue);
@@ -291,13 +294,13 @@ export default function GameContainer() {
     } finally {
       if (myId === loadIdRef.current) setIsLoadingEra(false);
     }
-  }, [rerolls.teamUsed, team, sport, loadPlayers]);
+  }, [gameplayLocked, rerolls.teamUsed, team, era, sport, loadPlayers]);
 
   const handleEraReroll = useCallback(async () => {
-    if (rerolls.eraUsed || !era) return;
+    if (gameplayLocked || rerolls.eraUsed || !era || !team) return;
     setRerolls(r => ({ ...r, eraUsed: true }));
 
-    const result = rerollEra(eraQueueRef.current, era.id);
+    const result = rerollEra(eraQueueRef.current, team, era.id);
     if (!result) return;
     eraQueueRef.current = result.newQueue;
     setEraQueue(result.newQueue);
@@ -313,24 +316,20 @@ export default function GameContainer() {
     } finally {
       if (myId === loadIdRef.current) setIsLoadingEra(false);
     }
-  }, [rerolls.eraUsed, era, sport, loadPlayers]);
+  }, [gameplayLocked, rerolls.eraUsed, era, team, sport, loadPlayers]);
 
   const handlePositionSwap = useCallback((slotId: string, position: Player['position'] | Player['position'][]) => {
-    if (rerolls.positionSwapUsed) return;
+    if (gameplayLocked || rerolls.positionSwapUsed) return;
     setRerolls(r => ({ ...r, positionSwapUsed: true }));
     setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
     setSwapMode({ slotId, position });
-  }, [rerolls.positionSwapUsed]);
+  }, [gameplayLocked, rerolls.positionSwapUsed]);
 
   const handleRemovePlayer = useCallback((slotId: string) => {
+    if (gameplayLocked) return;
     setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
     if (justPlacedSlotId === slotId) setJustPlacedSlotId(null);
-  }, [justPlacedSlotId]);
-
-  const handleSportChange = (s: Sport) => {
-    setSport(s);
-    setMode('combined');
-  };
+  }, [gameplayLocked, justPlacedSlotId]);
 
   const handleModeChange = (m: DraftMode) => {
     setMode(m);
@@ -341,7 +340,8 @@ export default function GameContainer() {
   // Simulate
   // ─────────────────────────────────────────────────────────────────────────
   const handleSimulate = async () => {
-    if (!isRosterFull) return;
+    if (!isRosterFull || gameplayLocked) return;
+    setGameplayLocked(true);
     setIsSimulating(true);
     try {
       const res = await fetch('/api/simulate', {
@@ -355,6 +355,7 @@ export default function GameContainer() {
       setShowResults(true);
     } catch {
       setError('Simulation failed. Please try again.');
+      setGameplayLocked(false);
     } finally {
       setIsSimulating(false);
     }
@@ -365,6 +366,7 @@ export default function GameContainer() {
     setShowResults(false);
     setSlots(prev => prev.map(s => ({ ...s, player: null })));
     setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
+    setGameplayLocked(false);
     setJustPlacedSlotId(null);
     setSwapMode(null);
     setPickPhase('loading');
@@ -380,11 +382,16 @@ export default function GameContainer() {
       <header className="border-b border-white/5 bg-black/40 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">⚡</span>
-            <span className="font-black text-xl tracking-tight text-white">GOD SQUAD</span>
+            <span className="text-sm font-black tracking-tight text-red-400">NFL</span>
+            <span className="font-black text-xl tracking-tight text-white">NFL GOD SQUAD</span>
             <span className="text-xs text-gray-500 hidden sm:block">{cfg.tagline}</span>
           </div>
-          <SportTabBar activeSport={sport} onChange={handleSportChange} />
+          <button
+            onClick={handleNewGame}
+            className="text-xs text-gray-500 hover:text-gray-300 border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            New Game
+          </button>
         </div>
       </header>
 
@@ -399,16 +406,15 @@ export default function GameContainer() {
         {/* Era + Mode row */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <EraCard era={era} team={team} isLoading={isLoadingEra} sport={sport} />
-          {sportHasModes && <ModeSelector mode={mode} onChange={handleModeChange} />}
         </div>
 
         {/* Reroll controls */}
-        <RerollBar
+        {!gameplayLocked && pickPhase !== 'complete' && <RerollBar
           rerolls={rerolls}
           onTeamReroll={handleTeamReroll}
           onEraReroll={handleEraReroll}
           isLoading={isLoadingEra}
-        />
+        />}
 
         {/* Swap mode banner */}
         {swapMode && (
@@ -481,7 +487,8 @@ export default function GameContainer() {
             sport={sport}
             onRemove={handleRemovePlayer}
             onPositionSwap={handlePositionSwap}
-            positionSwapUsed={rerolls.positionSwapUsed}
+            positionSwapUsed={rerolls.positionSwapUsed || gameplayLocked}
+            locked={gameplayLocked}
             justPlacedSlotId={justPlacedSlotId}
           />
 
@@ -493,21 +500,21 @@ export default function GameContainer() {
 
             <button
               onClick={handleSimulate}
-              disabled={!isRosterFull || isSimulating}
+              disabled={!isRosterFull || isSimulating || gameplayLocked}
               className={`
                 w-full py-4 rounded-xl font-black text-lg tracking-wide uppercase
                 transition-all duration-200
-                ${isRosterFull && !isSimulating
+                ${isRosterFull && !isSimulating && !gameplayLocked
                   ? 'text-white hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer'
                   : 'bg-gray-800 text-gray-600 cursor-not-allowed'
                 }
                 ${isSimulating ? 'animate-pulse' : ''}
               `}
-              style={isRosterFull && !isSimulating ? {
+              style={isRosterFull && !isSimulating && !gameplayLocked ? {
                 background: `linear-gradient(135deg, ${cfg.primaryColor}, ${cfg.accentColor})`
               } : undefined}
             >
-              {isSimulating ? 'Simulating...' : isRosterFull ? '⚡ Simulate Season' : 'Fill Roster to Simulate'}
+              {isSimulating ? 'Simulating...' : isRosterFull ? 'Sim Season' : 'Fill Roster to Simulate'}
             </button>
 
             <div className="text-center text-xs text-gray-600">

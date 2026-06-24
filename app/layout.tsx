@@ -2,12 +2,12 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'God Squad — Build the Greatest Team in Sports History',
-  description: 'Draft players from historic eras and simulate a perfect season. Can your God Squad go undefeated?',
-  keywords: ['sports', 'fantasy', 'NBA', 'NFL', 'MLB', 'NHL', 'team builder', 'simulation'],
+  title: 'NFL God Squad',
+  description: 'Draft NFL legends and team units from historic eras, then simulate a 17-game chase for perfection.',
+  keywords: ['NFL', 'football', 'fantasy', 'team builder', 'simulation', 'historical football'],
   openGraph: {
-    title: 'God Squad',
-    description: 'Build your perfect historical sports team and go undefeated.',
+    title: 'NFL God Squad',
+    description: 'Build an all-time NFL squad and try to go 17-0.',
     type: 'website',
   },
 };

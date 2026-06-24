@@ -28,9 +28,9 @@ export const SPORT_CONFIG: Record<Sport, {
     primaryColor: '#013369',
     accentColor: '#D50A0A',
     bgColor: '#000818',
-    gamesInSeason: 20,
-    hasModes: true,
-    tagline: 'Can your squad go 20-0?',
+    gamesInSeason: 17,
+    hasModes: false,
+    tagline: 'Can your squad go 17-0?',
   },
   mlb: {
     label: 'MLB',
@@ -87,29 +87,18 @@ export const NBA_ROSTER: RosterSlotTemplate[] = [
 
 // Full starting lineup — all slots required (fantasy-team style)
 export const NFL_OFFENSE_ROSTER: RosterSlotTemplate[] = [
-  { id: 'qb',  position: 'QB', label: 'Quarterback',     group: 'offense', required: true },
-  { id: 'rb1', position: 'RB', label: 'Running Back',    group: 'offense', required: true },
-  { id: 'rb2', position: 'RB', label: 'Fullback / RB2',  group: 'offense', required: true },
-  { id: 'wr1', position: 'WR', label: 'Wide Receiver 1', group: 'offense', required: true },
-  { id: 'wr2', position: 'WR', label: 'Wide Receiver 2', group: 'offense', required: true },
-  { id: 'wr3', position: 'WR', label: 'Slot Receiver',   group: 'offense', required: true },
-  { id: 'te1', position: 'TE', label: 'Tight End',       group: 'offense', required: true },
-  { id: 'te2', position: 'TE', label: 'H-Back / TE2',    group: 'offense', required: true },
-  { id: 'k',   position: 'K',  label: 'Kicker',          group: 'offense', required: true },
+  { id: 'qb',   position: 'QB',               label: 'Quarterback',     group: 'offense', required: true },
+  { id: 'rb',   position: 'RB',               label: 'Running Back',    group: 'offense', required: true },
+  { id: 'wr1',  position: 'WR',               label: 'Wide Receiver 1', group: 'offense', required: true },
+  { id: 'wr2',  position: 'WR',               label: 'Wide Receiver 2', group: 'offense', required: true },
+  { id: 'te',   position: 'TE',               label: 'Tight End',       group: 'offense', required: true },
+  { id: 'flex', position: ['RB', 'WR', 'TE'], label: 'Flex',            group: 'offense', required: true },
+  { id: 'ol',   position: 'OL',               label: 'O-Line',          group: 'offense', required: true },
+  { id: 'def',  position: 'DEF',              label: 'Defense',         group: 'defense', required: true },
 ];
 
 export const NFL_DEFENSE_ROSTER: RosterSlotTemplate[] = [
-  { id: 'de1', position: 'DE', label: 'Defensive End 1',  group: 'defense', required: true },
-  { id: 'de2', position: 'DE', label: 'Defensive End 2',  group: 'defense', required: true },
-  { id: 'dt1', position: 'DT', label: 'Defensive Tackle', group: 'defense', required: true },
-  { id: 'dt2', position: 'DT', label: 'Nose Tackle',      group: 'defense', required: true },
-  { id: 'lb1', position: 'LB', label: 'Linebacker 1',     group: 'defense', required: true },
-  { id: 'lb2', position: 'LB', label: 'Linebacker 2',     group: 'defense', required: true },
-  { id: 'lb3', position: 'LB', label: 'Linebacker 3',     group: 'defense', required: true },
-  { id: 'cb1', position: 'CB', label: 'Cornerback 1',     group: 'defense', required: true },
-  { id: 'cb2', position: 'CB', label: 'Cornerback 2',     group: 'defense', required: true },
-  { id: 'fs',  position: 'S',  label: 'Free Safety',      group: 'defense', required: true },
-  { id: 'ss',  position: 'S',  label: 'Strong Safety',    group: 'defense', required: true },
+  { id: 'def', position: 'DEF', label: 'Defense', group: 'defense', required: true },
 ];
 
 export const MLB_OFFENSE_ROSTER: RosterSlotTemplate[] = [
@@ -162,9 +151,7 @@ export function getRosterTemplates(sport: Sport, mode: DraftMode): RosterSlotTem
     case 'nba':
       return NBA_ROSTER;
     case 'nfl':
-      if (mode === 'offense') return NFL_OFFENSE_ROSTER;
-      if (mode === 'defense') return NFL_DEFENSE_ROSTER;
-      return [...NFL_OFFENSE_ROSTER, ...NFL_DEFENSE_ROSTER];
+      return NFL_OFFENSE_ROSTER;
     case 'mlb':
       if (mode === 'offense') return MLB_OFFENSE_ROSTER;
       if (mode === 'defense') return MLB_PITCHING_ROSTER;
@@ -275,12 +262,18 @@ const ERA_DATA: Record<string, { name: string; description: string }> = {
   'nfl-25-2011': { name: 'Harbaugh Era', description: "Jim Harbaugh's 49ers return to dominance with Kaepernick; three straight NFC title games" },
   'nfl-25-2019': { name: 'Shanahan & Kittle', description: "Kyle Shanahan's scheme with Kittle, Deebo, and Purdy makes SF an NFC powerhouse again" },
   // ── NFL Cowboys (6) ───────────────────────────────────────────────────────
+  'nfl-6-1990': { name: 'Triplets Rise', description: "Aikman, Emmitt, and Irvin turn Dallas into the decade's defining dynasty" },
   'nfl-6-1991': { name: 'Triplets Dynasty', description: "Aikman, Emmitt, and Irvin win three rings in four years; America's Team at its peak" },
+  'nfl-6-1995': { name: 'Last Triplets Ring', description: "Dallas squeezes one more title from its legendary offensive line and star core" },
   'nfl-6-2006': { name: 'Romo Era', description: "Tony Romo brings flair but playoff heartbreak; Dez Bryant's 'incomplete' defines the era" },
   // ── NFL Patriots (17) ─────────────────────────────────────────────────────
+  'nfl-17-2000': { name: 'Brady Dynasty I', description: "Tom Brady emerges and New England turns tight margins into rings" },
   'nfl-17-2001': { name: 'Brady Dynasty I', description: "Brady stuns the Greatest Show on Turf; three rings in four years on slim margins" },
+  'nfl-17-2005': { name: 'Brady-Moss Apex', description: "New England pairs Brady with Randy Moss and builds one of the most terrifying attacks ever" },
   'nfl-17-2006': { name: 'Brady Dynasty II', description: "The Moss-to-Brady 50-TD season and a 16-0 run before the Giants upset" },
+  'nfl-17-2010': { name: 'Gronk Era', description: "Gronkowski and Edelman reshape the offense as Brady keeps stacking late-prime seasons" },
   'nfl-17-2011': { name: 'Brady Dynasty III', description: "Gronkowski and Edelman power two more Super Bowls for the greatest dynasty ever" },
+  'nfl-17-2015': { name: 'Final Patriots Peak', description: "Brady's last New England title window blends veteran precision with a loaded defense" },
   'nfl-17-2016': { name: '28-3', description: "Brady's greatest comeback from 28-3 down in the Super Bowl; dynasty's crown jewel" },
   // ── NFL Packers (9) ───────────────────────────────────────────────────────
   'nfl-9-1995': { name: 'Favre\'s Title', description: "Brett Favre wins three straight MVPs and a Super Bowl; Green Bay is elite again" },
@@ -297,7 +290,9 @@ const ERA_DATA: Record<string, { name: string; description: string }> = {
   'nfl-14-1999': { name: 'Greatest Show on Turf', description: "Kurt Warner, Marshall Faulk, and the GSOT break every offensive record in two Super Bowls" },
   'nfl-14-2017': { name: 'McVay Era', description: "Sean McVay's offense with Goff and Gurley shocks the league; a Super Bowl win in '21" },
   // ── NFL Chiefs (12) ───────────────────────────────────────────────────────
+  'nfl-12-2015': { name: 'Reid Chiefs Rise', description: "Andy Reid builds the runway from Alex Smith efficiency to Mahomes-level fireworks" },
   'nfl-12-2018': { name: 'Mahomes Dynasty', description: "Patrick Mahomes wins three Super Bowls by 28 with Kelce; the new millennium dynasty" },
+  'nfl-12-2020': { name: 'Mahomes Dynasty Peak', description: "Mahomes, Kelce, Hill, and a rebuilt line make Kansas City the league's final boss" },
   // ── NFL Seahawks (26) ─────────────────────────────────────────────────────
   'nfl-26-2012': { name: 'Legion of Boom', description: "Sherman, Chancellor, Thomas, and Bennett field the best defense of the decade; a Super Bowl blowout" },
   // ── NFL Ravens (33) ───────────────────────────────────────────────────────

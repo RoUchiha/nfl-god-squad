@@ -1,5 +1,6 @@
 import type { Player, HistoricalTeam, Era } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
+import { generateTeamEras } from '../constants';
 
 export const NFL_TEAMS: HistoricalTeam[] = [
   { id: '22', name: 'Cardinals',  city: 'Arizona',      abbreviation: 'ARI', sport: 'nfl', primaryColor: '#97233F', secondaryColor: '#000000' },
@@ -284,6 +285,191 @@ const HISTORICAL_ROSTERS: Record<string, HistoricalPlayer[]> = {
 
 export const NFL_CURATED_ERA_KEYS = Object.keys(HISTORICAL_ROSTERS);
 
+export const NFL_ELITE_SCORE = 90;
+export const NFL_SUPERSTAR_SCORE = 93;
+export const NFL_GOAT_SCORE = 96;
+
+export function curatedEraWeight(players: Player[]): number {
+  const eliteCount = players.filter(player => player.playerScore >= NFL_ELITE_SCORE).length;
+  const superstarCount = players.filter(player => player.playerScore >= NFL_SUPERSTAR_SCORE).length;
+  const goatCount = players.filter(player => player.playerScore >= NFL_GOAT_SCORE).length;
+  const hasEliteUnit = players.some(player => (player.position === 'OL' || player.position === 'DEF') && player.playerScore >= 90);
+  const topScore = Math.max(0, ...players.map(player => player.playerScore));
+
+  let weight = topScore >= NFL_GOAT_SCORE
+    ? 0.26
+    : topScore >= NFL_SUPERSTAR_SCORE
+      ? 0.5
+      : eliteCount > 0
+        ? 0.78
+        : 1;
+
+  weight *= Math.pow(0.58, Math.max(0, eliteCount - 1));
+  weight *= Math.pow(0.62, Math.max(0, superstarCount - 1));
+  weight *= Math.pow(0.7, Math.max(0, goatCount - 1));
+  if (hasEliteUnit) weight *= 0.82;
+
+  return Math.max(0.1, Math.round(weight * 1000) / 1000);
+}
+
+export interface CuratedNFLEraCatalogEntry {
+  key: string;
+  team: HistoricalTeam;
+  era: Era;
+  weight: number;
+  elitePlayerCount: number;
+  superstarPlayerCount: number;
+  goatPlayerCount: number;
+}
+
+type UnitMeta = {
+  offensiveLine: { name: string; bestSeasonYear: number; stats: Player['stats']; isLegend?: boolean };
+  defense: { name: string; bestSeasonYear: number; stats: Player['stats']; isLegend?: boolean };
+};
+
+const CURATED_UNITS: Record<string, UnitMeta> = {
+  '23-nfl-23-1975': {
+    offensiveLine: { name: 'Steelers Dynasty O-Line', bestSeasonYear: 1978, isLegend: true, stats: { sacksAllowed: 31, lineRank: 3, runBlockRank: 4, passBlockRank: 5 } },
+    defense: { name: 'Steel Curtain Defense', bestSeasonYear: 1976, isLegend: true, stats: { pointsAllowed: 138, yardsAllowed: 3566, sacks: 46, takeaways: 47 } },
+  },
+  '25-nfl-25-1980': {
+    offensiveLine: { name: 'Walsh West Coast O-Line', bestSeasonYear: 1984, stats: { sacksAllowed: 32, lineRank: 7, runBlockRank: 9, passBlockRank: 5 } },
+    defense: { name: '1984 49ers Defense', bestSeasonYear: 1984, stats: { pointsAllowed: 227, yardsAllowed: 4861, sacks: 51, takeaways: 38 } },
+  },
+  '25-nfl-25-1985': {
+    offensiveLine: { name: 'Montana-Rice O-Line', bestSeasonYear: 1989, isLegend: true, stats: { sacksAllowed: 25, lineRank: 4, runBlockRank: 7, passBlockRank: 3 } },
+    defense: { name: '1989 49ers Defense', bestSeasonYear: 1989, stats: { pointsAllowed: 253, yardsAllowed: 4880, sacks: 44, takeaways: 34 } },
+  },
+  '6-nfl-6-1990': {
+    offensiveLine: { name: 'Great Wall of Dallas', bestSeasonYear: 1993, isLegend: true, stats: { sacksAllowed: 25, lineRank: 1, runBlockRank: 1, passBlockRank: 3 } },
+    defense: { name: '1992 Cowboys Defense', bestSeasonYear: 1992, stats: { pointsAllowed: 243, yardsAllowed: 4470, sacks: 44, takeaways: 37 } },
+  },
+  '6-nfl-6-1995': {
+    offensiveLine: { name: 'Last Triplets O-Line', bestSeasonYear: 1995, isLegend: true, stats: { sacksAllowed: 18, lineRank: 1, runBlockRank: 1, passBlockRank: 2 } },
+    defense: { name: '1995 Cowboys Defense', bestSeasonYear: 1995, stats: { pointsAllowed: 291, yardsAllowed: 5050, sacks: 36, takeaways: 31 } },
+  },
+  '17-nfl-17-2000': {
+    offensiveLine: { name: 'Brady Dynasty O-Line I', bestSeasonYear: 2004, stats: { sacksAllowed: 26, lineRank: 8, runBlockRank: 7, passBlockRank: 6 } },
+    defense: { name: '2003 Patriots Defense', bestSeasonYear: 2003, isLegend: true, stats: { pointsAllowed: 238, yardsAllowed: 4670, sacks: 41, takeaways: 41 } },
+  },
+  '17-nfl-17-2005': {
+    offensiveLine: { name: 'Brady-Moss Pass Pro Unit', bestSeasonYear: 2007, isLegend: true, stats: { sacksAllowed: 21, lineRank: 2, runBlockRank: 8, passBlockRank: 1 } },
+    defense: { name: '2007 Patriots Defense', bestSeasonYear: 2007, stats: { pointsAllowed: 274, yardsAllowed: 4613, sacks: 47, takeaways: 31 } },
+  },
+  '17-nfl-17-2010': {
+    offensiveLine: { name: 'Gronk Era O-Line', bestSeasonYear: 2012, stats: { sacksAllowed: 27, lineRank: 5, runBlockRank: 6, passBlockRank: 5 } },
+    defense: { name: '2014 Patriots Defense', bestSeasonYear: 2014, stats: { pointsAllowed: 313, yardsAllowed: 5480, sacks: 40, takeaways: 25 } },
+  },
+  '17-nfl-17-2015': {
+    offensiveLine: { name: 'Late Brady O-Line', bestSeasonYear: 2016, stats: { sacksAllowed: 24, lineRank: 6, runBlockRank: 10, passBlockRank: 4 } },
+    defense: { name: '2019 Patriots Defense', bestSeasonYear: 2019, isLegend: true, stats: { pointsAllowed: 225, yardsAllowed: 4414, sacks: 47, takeaways: 36 } },
+  },
+  '12-nfl-12-2015': {
+    offensiveLine: { name: 'Early Reid O-Line', bestSeasonYear: 2018, stats: { sacksAllowed: 26, lineRank: 7, runBlockRank: 11, passBlockRank: 4 } },
+    defense: { name: '2016 Chiefs Defense', bestSeasonYear: 2016, stats: { pointsAllowed: 311, yardsAllowed: 5890, sacks: 28, takeaways: 33 } },
+  },
+  '12-nfl-12-2020': {
+    offensiveLine: { name: 'Creed & Thuney O-Line', bestSeasonYear: 2022, isLegend: true, stats: { sacksAllowed: 26, lineRank: 2, runBlockRank: 5, passBlockRank: 2 } },
+    defense: { name: '2023 Chiefs Defense', bestSeasonYear: 2023, isLegend: true, stats: { pointsAllowed: 294, yardsAllowed: 4926, sacks: 57, takeaways: 17 } },
+  },
+};
+
+function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] | null {
+  const key = `${team.id}-${era.id}`;
+  const roster = HISTORICAL_ROSTERS[key];
+  const units = CURATED_UNITS[key];
+  if (!roster || !units) return null;
+
+  const players = roster
+    .filter(hp => hp.group === 'offense' && hp.position !== 'K')
+    .map((hp, i) => {
+      const p: Player = {
+        id: `nfl-hist-${team.id}-${era.id}-${i}`,
+        name: hp.name,
+        position: hp.position,
+        positionGroup: hp.group,
+        eraId: era.id,
+        teamId: team.id,
+        yearsWithTeam: `${era.startYear}-${era.endYear}`,
+        stats: hp.stats,
+        playerScore: 0,
+        isLegend: hp.isLegend,
+      };
+      p.playerScore = computePlayerScore(p, 'nfl');
+      return p;
+    });
+
+  const ol: Player = {
+    id: `nfl-unit-${team.id}-${era.id}-ol`,
+    name: units.offensiveLine.name,
+    position: 'OL',
+    positionGroup: 'offense',
+    eraId: era.id,
+    teamId: team.id,
+    bestSeasonYear: units.offensiveLine.bestSeasonYear,
+    yearsWithTeam: `${era.startYear}-${era.endYear}`,
+    stats: units.offensiveLine.stats,
+    playerScore: 0,
+    isLegend: units.offensiveLine.isLegend,
+  };
+  ol.playerScore = computePlayerScore(ol, 'nfl');
+
+  const defense: Player = {
+    id: `nfl-unit-${team.id}-${era.id}-def`,
+    name: units.defense.name,
+    position: 'DEF',
+    positionGroup: 'defense',
+    eraId: era.id,
+    teamId: team.id,
+    bestSeasonYear: units.defense.bestSeasonYear,
+    yearsWithTeam: `${era.startYear}-${era.endYear}`,
+    stats: units.defense.stats,
+    playerScore: 0,
+    isLegend: units.defense.isLegend,
+  };
+  defense.playerScore = computePlayerScore(defense, 'nfl');
+
+  return [...players, ol, defense].sort((a, b) => b.playerScore - a.playerScore);
+}
+
+export function getCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] | null {
+  return buildCuratedNFLPlayers(team, era);
+}
+
+let curatedCatalogCache: CuratedNFLEraCatalogEntry[] | null = null;
+
+export function getCuratedNFLEraCatalog(): CuratedNFLEraCatalogEntry[] {
+  if (!curatedCatalogCache) {
+    curatedCatalogCache = NFL_CURATED_ERA_KEYS.map(key => {
+      const [, sport, teamId, start] = key.split('-');
+      const team = NFL_TEAMS.find(item => item.id === teamId);
+      if (!team || sport !== 'nfl') return null;
+      const generatedEra = generateTeamEras(team).find(item => item.id === `nfl-${teamId}-${start}`);
+      const era: Era = generatedEra ?? {
+        id: `nfl-${teamId}-${start}`,
+        teamId,
+        sport: 'nfl',
+        startYear: Number(start),
+        endYear: Number(start) + 4,
+        name: `${start}-${Number(start) + 4}`,
+        description: `${team.city} ${team.name} from ${start}-${Number(start) + 4}`,
+      };
+      const players = getCuratedNFLPlayers(team, era);
+      if (!players) return null;
+      return {
+        key,
+        team,
+        era,
+        weight: curatedEraWeight(players),
+        elitePlayerCount: players.filter(player => player.playerScore >= NFL_ELITE_SCORE).length,
+        superstarPlayerCount: players.filter(player => player.playerScore >= NFL_SUPERSTAR_SCORE).length,
+        goatPlayerCount: players.filter(player => player.playerScore >= NFL_GOAT_SCORE).length,
+      };
+    }).filter((entry): entry is CuratedNFLEraCatalogEntry => entry !== null);
+  }
+  return curatedCatalogCache;
+}
+
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
 
 interface ESPNAthlete {
@@ -357,24 +543,8 @@ async function fetchESPNRoster(teamId: string, year: number): Promise<Player[]> 
 export async function fetchNFLPlayers(team: HistoricalTeam, era: Era): Promise<Player[]> {
   // Check hardcoded historical roster first
   const key = `${team.id}-${era.id}`;
-  if (HISTORICAL_ROSTERS[key]) {
-    return HISTORICAL_ROSTERS[key].map((hp, i) => {
-      const p: Player = {
-        id: `nfl-hist-${team.id}-${i}`,
-        name: hp.name,
-        position: hp.position,
-        positionGroup: hp.group,
-        eraId: era.id,
-        teamId: team.id,
-        yearsWithTeam: `${era.startYear}–${era.endYear}`,
-        stats: hp.stats,
-        playerScore: 0,
-        isLegend: hp.isLegend,
-      };
-      p.playerScore = computePlayerScore(p, 'nfl');
-      return p;
-    }).sort((a, b) => b.playerScore - a.playerScore);
-  }
+  const curated = getCuratedNFLPlayers(team, era);
+  if (curated) return curated;
 
   // ESPN API: sample up to 4 evenly-spaced years across the era
   const years = eraYears(era.startYear, era.endYear, 4);
@@ -394,7 +564,7 @@ export async function fetchNFLPlayers(team: HistoricalTeam, era: Era): Promise<P
   }));
 
   const all = Array.from(byName.values()).sort((a, b) => b.playerScore - a.playerScore);
-  if (all.length < 8) return generateFallbackNFLPlayers(team, era);
+  if (all.length < 8) return [];
   return all;
 }
 

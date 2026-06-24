@@ -97,6 +97,22 @@ function scoreNFLOffensePlayer(p: Player): number {
     );
   }
 
+  if (p.position === 'OL') {
+    const lineRank = s.lineRank ?? 12;
+    const runRank = s.runBlockRank ?? lineRank;
+    const passRank = s.passBlockRank ?? lineRank;
+    const sacksAllowed = s.sacksAllowed ?? 35;
+    return clamp(
+      82
+      - lineRank * 1.6
+      - runRank * 0.7
+      - passRank * 0.7
+      + Math.max(0, 45 - sacksAllowed) * 0.85,
+      0,
+      500
+    );
+  }
+
   if (p.position === 'K') {
     return p.isLegend ? 68 : p.isAllStar ? 54 : 42;
   }
@@ -146,6 +162,22 @@ function scoreNFLDefensePlayer(p: Player): number {
       + (s.tackles         ?? 0) * 0.25
       + (s.forcedFumbles   ?? 0) * 2.0,
       0, 500
+    );
+  }
+
+  if (p.position === 'DEF') {
+    const pointsAllowed = s.pointsAllowed ?? 310;
+    const yardsAllowed = s.yardsAllowed ?? 5200;
+    const takeaways = s.takeaways ?? 25;
+    const sacks = s.sacks ?? 38;
+    return clamp(
+      100
+      + Math.max(0, 360 - pointsAllowed) * 0.24
+      + Math.max(0, 5600 - yardsAllowed) * 0.014
+      + sacks * 0.95
+      + takeaways * 1.2,
+      0,
+      500
     );
   }
 
@@ -281,14 +313,14 @@ export function computePlayerScore(player: Player, sport: Sport): number {
       break;
     case 'nfl':
       if (player.positionGroup === 'offense') {
-        const nflOffAvg: Record<string, number> = { QB: 41, RB: 28, WR: 48, TE: 48, K: 0 };
-        const nflOffGoat: Record<string, number> = { QB: 82, RB: 51, WR: 104, TE: 104, K: 0 };
+        const nflOffAvg: Record<string, number> = { QB: 41, RB: 28, WR: 48, TE: 48, K: 0, OL: 91 };
+        const nflOffGoat: Record<string, number> = { QB: 82, RB: 51, WR: 104, TE: 104, K: 0, OL: 132 };
         const avg  = nflOffAvg[player.position]  ?? 40;
         const goat = nflOffGoat[player.position] ?? 80;
         base = avg > 0 ? calibrate(scoreNFLOffensePlayer(player), avg, goat) : scoreNFLOffensePlayer(player);
       } else {
-        const nflDefAvg: Record<string, number> = { DE: 50, DT: 32, LB: 57, CB: 57, S: 57 };
-        const nflDefGoat: Record<string, number> = { DE: 130, DT: 69, LB: 110, CB: 122, S: 122 };
+        const nflDefAvg: Record<string, number> = { DE: 50, DT: 32, LB: 57, CB: 57, S: 57, DEF: 156 };
+        const nflDefGoat: Record<string, number> = { DE: 130, DT: 69, LB: 110, CB: 122, S: 122, DEF: 226 };
         const avg  = nflDefAvg[player.position]  ?? 50;
         const goat = nflDefGoat[player.position] ?? 110;
         base = calibrate(scoreNFLDefensePlayer(player), avg, goat);

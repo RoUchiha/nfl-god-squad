@@ -1,114 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { FilledRosterSlot, Sport, DraftMode } from '@/lib/types';
+import type { FilledRosterSlot } from '@/lib/types';
 import { computeTeamGSPR } from '@/lib/algorithms/powerRating';
 import { simulateSeason } from '@/lib/algorithms/simulator';
+import { canonicalizeSimulationRoster, validateSimulationRoster } from '@/lib/simulationRoster';
+import { checkRateLimit, getClientIp, isTrustedMutationRequest, readJsonBody } from '@/lib/security';
+
+const RateStat = z.number().finite().min(0).max(1);
+const CountStat = z.number().finite().min(0).max(10000);
 
 const PlayerStatsSchema = z.object({
-  points: z.number().optional(),
-  rebounds: z.number().optional(),
-  assists: z.number().optional(),
-  steals: z.number().optional(),
-  blocks: z.number().optional(),
-  fieldGoalPct: z.number().optional(),
-  threePointPct: z.number().optional(),
-  freeThrowPct: z.number().optional(),
-  passingYards: z.number().optional(),
-  passingTDs: z.number().optional(),
-  passerRating: z.number().optional(),
-  rushingYards: z.number().optional(),
-  rushingTDs: z.number().optional(),
-  receivingYards: z.number().optional(),
-  receivingTDs: z.number().optional(),
-  receptions: z.number().optional(),
-  sacks: z.number().optional(),
-  interceptions: z.number().optional(),
-  tackles: z.number().optional(),
-  forcedFumbles: z.number().optional(),
-  battingAvg: z.number().optional(),
-  homeRuns: z.number().optional(),
-  rbi: z.number().optional(),
-  onBasePct: z.number().optional(),
-  sluggingPct: z.number().optional(),
-  ops: z.number().optional(),
-  stolenBases: z.number().optional(),
-  era: z.number().optional(),
-  whip: z.number().optional(),
-  strikeoutsPerNine: z.number().optional(),
-  wins: z.number().optional(),
-  saves: z.number().optional(),
-  inningsPitched: z.number().optional(),
-  goals: z.number().optional(),
-  nhlAssists: z.number().optional(),
-  nhlPoints: z.number().optional(),
-  plusMinus: z.number().optional(),
-  savePct: z.number().optional(),
-  goalsAgainstAvg: z.number().optional(),
-  penaltyMinutes: z.number().optional(),
-  powerPlayGoals: z.number().optional(),
-  soccerGoals: z.number().optional(),
-  soccerAssists: z.number().optional(),
-  soccerApps: z.number().optional(),
-  cleanSheets: z.number().optional(),
-  savePctSoc: z.number().optional(),
-  keyPasses: z.number().optional(),
-  tacklesPG: z.number().optional(),
+  passingYards: CountStat.optional(),
+  passingTDs: CountStat.optional(),
+  passerRating: z.number().finite().min(0).max(158.3).optional(),
+  rushingYards: CountStat.optional(),
+  rushingTDs: CountStat.optional(),
+  receivingYards: CountStat.optional(),
+  receivingTDs: CountStat.optional(),
+  receptions: CountStat.optional(),
+  sacksAllowed: CountStat.optional(),
+  lineRank: CountStat.optional(),
+  runBlockRank: CountStat.optional(),
+  passBlockRank: CountStat.optional(),
+  sacks: CountStat.optional(),
+  interceptions: CountStat.optional(),
+  tackles: CountStat.optional(),
+  forcedFumbles: CountStat.optional(),
+  passDeflections: CountStat.optional(),
+  pointsAllowed: CountStat.optional(),
+  yardsAllowed: CountStat.optional(),
+  takeaways: CountStat.optional(),
+  fieldGoalPct: RateStat.optional(),
 }).strict();
 
+const PositionSchema = z.enum(['QB', 'RB', 'WR', 'TE', 'OL', 'DEF']);
+
 const PlayerSchema = z.object({
-  id: z.string().max(60),
-  name: z.string().max(80),
-  position: z.string().max(10),
-  positionGroup: z.enum(['offense', 'defense', 'pitching', 'goalie']).or(z.string()),
+  id: z.string().min(1).max(100).regex(/^[a-zA-Z0-9._-]+$/),
+  name: z.string().min(1).max(100),
+  position: PositionSchema,
+  positionGroup: z.enum(['offense', 'defense']),
+  eraId: z.string().max(50).regex(/^[a-zA-Z0-9-]+$/).optional(),
+  teamId: z.string().max(20).regex(/^[a-zA-Z0-9]+$/).optional(),
+  bestSeasonYear: z.number().int().min(1920).max(2100).optional(),
   yearsWithTeam: z.string().max(20),
   stats: PlayerStatsSchema,
   playerScore: z.number().min(0).max(100),
   isLegend: z.boolean().optional(),
   isAllStar: z.boolean().optional(),
-});
+  imageUrl: z.string().url().optional(),
+}).strict();
 
 const RosterSlotSchema = z.object({
-  id: z.string(),
-  position: z.union([z.string(), z.array(z.string())]),
-  label: z.string(),
-  group: z.enum(['offense', 'defense', 'pitching', 'goalie']).or(z.string()),
+  id: z.string().min(1).max(30).regex(/^[a-zA-Z0-9_-]+$/),
+  position: z.union([PositionSchema, z.array(PositionSchema).max(3)]),
+  label: z.string().min(1).max(40),
+  group: z.enum(['offense', 'defense']),
   required: z.boolean(),
   player: PlayerSchema.nullable(),
-});
+}).strict();
 
 const SimulateBodySchema = z.object({
-  sport: z.enum(['nba', 'nfl', 'mlb', 'nhl', 'epl', 'wcup']),
-  mode: z.enum(['offense', 'defense', 'combined']),
-  slots: z.array(RosterSlotSchema).max(30),
-});
+  sport: z.literal('nfl'),
+  mode: z.literal('combined'),
+  slots: z.array(RosterSlotSchema).length(8),
+}).strict();
 
 export async function POST(req: NextRequest) {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  if (!isTrustedMutationRequest(req)) {
+    return NextResponse.json({ error: 'Cross-site requests are not allowed' }, {
+      status: 403,
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
-  const parsed = SimulateBodySchema.safeParse(body);
-  if (!parsed.success) {
+  if (!req.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+    return NextResponse.json({ error: 'Content-Type must be application/json' }, {
+      status: 415,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
+
+  const ip = getClientIp(req);
+  const requestLimit = checkRateLimit(`simulate:${ip}`, { limit: 12, windowMs: 60_000 });
+  if (!requestLimit.allowed) {
     return NextResponse.json(
-      { error: 'Invalid request data', details: parsed.error.flatten() },
-      { status: 400 }
+      { error: 'Too many simulation requests' },
+      { status: 429, headers: { 'Retry-After': String(requestLimit.retryAfter), 'Cache-Control': 'no-store' } }
     );
   }
 
-  const { sport, mode, slots } = parsed.data;
+  const bodyResult = await readJsonBody(req);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === 'too-large' ? 'Request body is too large' : 'Invalid JSON body' },
+      { status: bodyResult.reason === 'too-large' ? 413 : 400, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 
-  // Type-cast validated data back to our domain types
-  const typedSlots = slots as unknown as FilledRosterSlot[];
+  const parsed = SimulateBodySchema.safeParse(bodyResult.value);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid request data' }, {
+      status: 400,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
 
-  const teamPower = computeTeamGSPR(typedSlots, sport as Sport, mode as DraftMode);
-  const results = simulateSeason(teamPower, sport as Sport);
+  const submittedSlots = parsed.data.slots as unknown as FilledRosterSlot[];
+  const rosterError = validateSimulationRoster(submittedSlots);
+  if (rosterError) {
+    return NextResponse.json({ error: rosterError }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  const canonical = canonicalizeSimulationRoster(submittedSlots);
+  if (!canonical.slots) {
+    return NextResponse.json({ error: canonical.error }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  const canonicalRosterError = validateSimulationRoster(canonical.slots);
+  if (canonicalRosterError) {
+    return NextResponse.json({ error: canonicalRosterError }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  const teamPower = computeTeamGSPR(canonical.slots, 'nfl', 'combined');
+  const results = simulateSeason(teamPower, 'nfl');
 
   return NextResponse.json(results, {
     headers: {
-      'Cache-Control': 'no-store', // Each simulation is unique
+      'Cache-Control': 'no-store',
     },
   });
 }
