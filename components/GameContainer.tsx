@@ -8,7 +8,7 @@ import type {
 } from '@/lib/types';
 import { getRosterTemplates, SPORT_CONFIG } from '@/lib/constants';
 import { computeTeamGSPR } from '@/lib/algorithms/powerRating';
-import { buildEraQueue, rerollTeam, rerollEra, pickGambleEra, type EraQueueItem } from '@/lib/eraQueue';
+import { buildEraQueue, pickGambleEra, type EraQueueItem } from '@/lib/eraQueue';
 import { selectGambleReplacement } from '@/lib/gamble';
 import EraCard from './EraCard';
 import PlayerPool from './PlayerPool';
@@ -27,11 +27,15 @@ import PlayerPlacementPicker from './PlayerPlacementPicker';
 // ─────────────────────────────────────────────────────────────────────────────
 type PickPhase = 'loading' | 'ready' | 'placing' | 'complete';
 
+const MAX_TEAM_REROLLS = 3;
+const MAX_SIMULATIONS = 2;
+
 export default function GameContainer() {
   const loadIdRef    = useRef(0);
   // Prevents handleDraft from firing more than once per pick — guards against
   // stale-closure double-calls even if PlayerPool's own ref somehow lets one through.
   const draftGuardRef = useRef(false);
+  const rerollGuardRef = useRef(false);
 
   // ── Sport / mode ────────────────────────────────────────────────────────
   const [sport] = useState<Sport>('nfl');
@@ -63,12 +67,13 @@ export default function GameContainer() {
   const [error, setError]                       = useState<string | null>(null);
 
   // ── Rerolls + results ───────────────────────────────────────────────────
-  const [rerolls, setRerolls]       = useState<RerollState>({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
+  const [rerolls, setRerolls]       = useState<RerollState>({ teamRerollsUsed: 0, positionSwapUsed: false });
   const [results, setResults]       = useState<SeasonResults | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [gameplayLocked, setGameplayLocked] = useState(false);
   const [gambleUsed, setGambleUsed] = useState(false);
   const [gamblePending, setGamblePending] = useState(false);
+  const [simulationCount, setSimulationCount] = useState(0);
 
   // ── Derived ─────────────────────────────────────────────────────────────
   const cfg            = SPORT_CONFIG[sport];
@@ -174,12 +179,13 @@ export default function GameContainer() {
 
   // ── Start game on sport change ───────────────────────────────────────────
   useEffect(() => {
-    setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
+    setRerolls({ teamRerollsUsed: 0, positionSwapUsed: false });
     setResults(null);
     setShowResults(false);
     setGameplayLocked(false);
     setGambleUsed(false);
     setGamblePending(false);
+    setSimulationCount(0);
     setPickPhase('loading');
     startGame(sport);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,48 +286,27 @@ export default function GameContainer() {
   // Rerolls — pull from the remaining queue instead of calling the era API
   // ─────────────────────────────────────────────────────────────────────────
   const handleTeamReroll = useCallback(async () => {
-    if (gameplayLocked || rerolls.teamUsed || !team || !era) return;
-    setRerolls(r => ({ ...r, teamUsed: true }));
+    if (
+      gameplayLocked ||
+      rerollGuardRef.current ||
+      rerolls.teamRerollsUsed >= MAX_TEAM_REROLLS ||
+      pickPhase !== 'ready' ||
+      isLoadingEra ||
+      isLoadingPlayers
+    ) return;
 
-    const result = rerollTeam(eraQueueRef.current, team.id, era.startYear);
-    if (!result) return; // no alternative team left — do nothing
-    eraQueueRef.current = result.newQueue;
-    setEraQueue(result.newQueue);
+    rerollGuardRef.current = true;
+    setRerolls(r => ({
+      ...r,
+      teamRerollsUsed: Math.min(MAX_TEAM_REROLLS, r.teamRerollsUsed + 1),
+    }));
 
-    const myId = ++loadIdRef.current;
-    setIsLoadingEra(true);
-    setPlayers([]);
-    setJustPlacedSlotId(null);
     try {
-      setEra(result.item.era);
-      setTeam(result.item.team);
-      await loadPlayers(sport, result.item.team.id, result.item.era.id, myId);
+      await advancePick(eraQueueRef.current);
     } finally {
-      if (myId === loadIdRef.current) setIsLoadingEra(false);
+      rerollGuardRef.current = false;
     }
-  }, [gameplayLocked, rerolls.teamUsed, team, era, sport, loadPlayers]);
-
-  const handleEraReroll = useCallback(async () => {
-    if (gameplayLocked || rerolls.eraUsed || !era || !team) return;
-    setRerolls(r => ({ ...r, eraUsed: true }));
-
-    const result = rerollEra(eraQueueRef.current, team, era.id);
-    if (!result) return;
-    eraQueueRef.current = result.newQueue;
-    setEraQueue(result.newQueue);
-
-    const myId = ++loadIdRef.current;
-    setIsLoadingEra(true);
-    setPlayers([]);
-    setJustPlacedSlotId(null);
-    try {
-      setEra(result.item.era);
-      setTeam(result.item.team);
-      await loadPlayers(sport, result.item.team.id, result.item.era.id, myId);
-    } finally {
-      if (myId === loadIdRef.current) setIsLoadingEra(false);
-    }
-  }, [gameplayLocked, rerolls.eraUsed, era, team, sport, loadPlayers]);
+  }, [advancePick, gameplayLocked, isLoadingEra, isLoadingPlayers, pickPhase, rerolls.teamRerollsUsed]);
 
   const handlePositionSwap = useCallback((slotId: string, position: Player['position'] | Player['position'][]) => {
     if (gameplayLocked || rerolls.positionSwapUsed) return;
@@ -374,7 +359,8 @@ export default function GameContainer() {
   // Simulate
   // ─────────────────────────────────────────────────────────────────────────
   const handleSimulate = async () => {
-    if (!isRosterFull || gameplayLocked || gamblePending) return;
+    if (!isRosterFull || isSimulating || gamblePending || simulationCount >= MAX_SIMULATIONS) return;
+    const wasLocked = gameplayLocked;
     setGameplayLocked(true);
     setIsSimulating(true);
     try {
@@ -387,9 +373,10 @@ export default function GameContainer() {
       const data: SeasonResults = await res.json();
       setResults(data);
       setShowResults(true);
+      setSimulationCount(count => Math.min(MAX_SIMULATIONS, count + 1));
     } catch {
       setError('Simulation failed. Please try again.');
-      setGameplayLocked(false);
+      if (!wasLocked) setGameplayLocked(false);
     } finally {
       setIsSimulating(false);
     }
@@ -399,10 +386,11 @@ export default function GameContainer() {
     setResults(null);
     setShowResults(false);
     setSlots(prev => prev.map(s => ({ ...s, player: null })));
-    setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
+    setRerolls({ teamRerollsUsed: 0, positionSwapUsed: false });
     setGameplayLocked(false);
     setGambleUsed(false);
     setGamblePending(false);
+    setSimulationCount(0);
     setJustPlacedSlotId(null);
     setSwapMode(null);
     setPickPhase('loading');
@@ -448,7 +436,6 @@ export default function GameContainer() {
         {!gameplayLocked && pickPhase !== 'complete' && <RerollBar
           rerolls={rerolls}
           onTeamReroll={handleTeamReroll}
-          onEraReroll={handleEraReroll}
           isLoading={isLoadingEra}
         />}
 
@@ -584,6 +571,9 @@ export default function GameContainer() {
           results={results}
           onClose={() => setShowResults(false)}
           onNewGame={handleNewGame}
+          onResimulate={handleSimulate}
+          canResimulate={simulationCount < MAX_SIMULATIONS && !isSimulating}
+          isResimulating={isSimulating}
         />
       )}
     </div>

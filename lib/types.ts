@@ -226,8 +226,7 @@ export interface SeasonResults {
 }
 
 export interface RerollState {
-  teamUsed: boolean;
-  eraUsed: boolean;
+  teamRerollsUsed: number;
   positionSwapUsed: boolean;
 }
 

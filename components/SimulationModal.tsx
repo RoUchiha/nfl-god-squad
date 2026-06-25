@@ -8,9 +8,19 @@ interface Props {
   results: SeasonResults;
   onClose: () => void;
   onNewGame: () => void;
+  onResimulate: () => void;
+  canResimulate: boolean;
+  isResimulating: boolean;
 }
 
-export default function SimulationModal({ results, onClose, onNewGame }: Props) {
+export default function SimulationModal({
+  results,
+  onClose,
+  onNewGame,
+  onResimulate,
+  canResimulate,
+  isResimulating,
+}: Props) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const cfg = SPORT_CONFIG[results.sport];
 
@@ -152,6 +162,17 @@ export default function SimulationModal({ results, onClose, onNewGame }: Props) 
               className="flex-1 py-3 rounded-xl font-bold text-sm bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
             >
               New Game
+            </button>
+            <button
+              onClick={onResimulate}
+              disabled={!canResimulate}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-colors ${
+                canResimulate
+                  ? 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                  : 'bg-black/20 text-gray-600 border-white/5 cursor-not-allowed'
+              }`}
+            >
+              {isResimulating ? 'Re-Simulating...' : 'Re-Simulate'}
             </button>
             <button
               onClick={onClose}

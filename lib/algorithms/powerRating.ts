@@ -321,9 +321,14 @@ export function computePlayerScore(player: Player, sport: Sport): number {
       } else {
         const nflDefAvg: Record<string, number> = { DE: 50, DT: 32, LB: 57, CB: 57, S: 57, DEF: 156 };
         const nflDefGoat: Record<string, number> = { DE: 130, DT: 69, LB: 110, CB: 122, S: 122, DEF: 226 };
-        const avg  = nflDefAvg[player.position]  ?? 50;
-        const goat = nflDefGoat[player.position] ?? 110;
-        base = calibrate(scoreNFLDefensePlayer(player), avg, goat);
+        const rawDefenseScore = scoreNFLDefensePlayer(player);
+        if (player.position === 'DEF') {
+          base = clamp(75 + (rawDefenseScore - 190) * 0.2, 58, 97);
+        } else {
+          const avg  = nflDefAvg[player.position]  ?? 50;
+          const goat = nflDefGoat[player.position] ?? 110;
+          base = calibrate(rawDefenseScore, avg, goat);
+        }
       }
       break;
     case 'mlb':

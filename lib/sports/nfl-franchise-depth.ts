@@ -1,5 +1,6 @@
 import type { Era, HistoricalTeam, Player } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
+import { applyNflAwardFloors } from './nfl-awards';
 
 type SkillPosition = Extract<Player['position'], 'QB' | 'RB' | 'WR' | 'TE'>;
 
@@ -243,16 +244,52 @@ function overlapDistance(player: DepthPlayer, era: Era): number {
   return player.from - era.endYear;
 }
 
-function selectByPosition(players: DepthPlayer[], era: Era, position: SkillPosition, count: number): DepthPlayer[] {
-  return players
-    .filter(player => player.position === position)
+function selectByPosition(
+  team: HistoricalTeam,
+  players: DepthPlayer[],
+  era: Era,
+  position: SkillPosition,
+  count: number,
+): DepthPlayer[] {
+  const eraMatches = players
+    .filter(player => player.position === position && overlapDistance(player, era) === 0)
     .sort((a, b) =>
-      overlapDistance(a, era) - overlapDistance(b, era) ||
       (b.isLegend ? 1 : 0) - (a.isLegend ? 1 : 0) ||
       (b.isAllStar ? 1 : 0) - (a.isAllStar ? 1 : 0) ||
       b.to - a.to
     )
     .slice(0, count);
+
+  if (eraMatches.length >= count) return eraMatches;
+
+  return [
+    ...eraMatches,
+    ...Array.from({ length: count - eraMatches.length }, (_, index) => buildEraDepthPlayer(team, position, era, index)),
+  ];
+}
+
+function buildEraDepthPlayer(team: HistoricalTeam, position: SkillPosition, era: Era, index: number): DepthPlayer {
+  const suffix = ['I', 'II', 'III'][index] ?? String(index + 1);
+  const nameByPosition: Record<SkillPosition, string> = {
+    QB: `${team.city} ${team.name} Quarterback Room`,
+    RB: `${team.city} ${team.name} Running Back Room ${suffix}`,
+    WR: `${team.city} ${team.name} Receiver Room ${suffix}`,
+    TE: `${team.city} ${team.name} Tight End Room`,
+  };
+  const statsByPosition: Record<SkillPosition, Player['stats']> = {
+    QB: { passingYards: 2550, passingTDs: 15, passerRating: era.startYear < 1978 ? 73 : 82, interceptions: 14 },
+    RB: { rushingYards: 620 - index * 85, rushingTDs: 4, receptions: 24, receivingYards: 180 },
+    WR: { receivingYards: 560 - index * 80, receivingTDs: 4, receptions: 42 },
+    TE: { receivingYards: 390, receivingTDs: 3, receptions: 34 },
+  };
+
+  return {
+    name: nameByPosition[position],
+    position,
+    from: era.startYear,
+    to: era.endYear,
+    stats: statsByPosition[position],
+  };
 }
 
 function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, index: number): Player {
@@ -274,7 +311,7 @@ function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, i
     isAllStar: source.isAllStar,
   };
   player.playerScore = computePlayerScore(player, 'nfl');
-  return player;
+  return applyNflAwardFloors(player, era);
 }
 
 function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def'): Player['stats'] {
@@ -321,10 +358,10 @@ function buildUnit(team: HistoricalTeam, era: Era, kind: 'ol' | 'def'): Player {
 export function buildFranchiseDepthNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   const depth = NFL_FRANCHISE_DEPTH_PLAYERS[team.id] ?? [];
   const selected = [
-    ...selectByPosition(depth, era, 'QB', 1),
-    ...selectByPosition(depth, era, 'RB', 2),
-    ...selectByPosition(depth, era, 'WR', 3),
-    ...selectByPosition(depth, era, 'TE', 1),
+    ...selectByPosition(team, depth, era, 'QB', 1),
+    ...selectByPosition(team, depth, era, 'RB', 2),
+    ...selectByPosition(team, depth, era, 'WR', 3),
+    ...selectByPosition(team, depth, era, 'TE', 1),
   ];
 
   const players = selected.map((player, index) => buildSkillPlayer(team, era, player, index));

@@ -2,6 +2,7 @@ import type { Player, HistoricalTeam, Era } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
 import { generateTeamEras } from '../constants';
 import { buildFranchiseDepthNFLPlayers } from './nfl-franchise-depth';
+import { applyNflAwardFloors } from './nfl-awards';
 
 export const NFL_TEAMS: HistoricalTeam[] = [
   { id: '22', name: 'Cardinals',  city: 'Arizona',      abbreviation: 'ARI', sport: 'nfl', primaryColor: '#97233F', secondaryColor: '#000000' },
@@ -528,7 +529,7 @@ function buildUnitPlayer(
     isLegend: source.isLegend,
   };
   player.playerScore = computePlayerScore(player, 'nfl');
-  return player;
+  return applyNflAwardFloors(player, era);
 }
 
 function bestUnitForGroup(
@@ -578,11 +579,12 @@ function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
         isLegend: historical.isLegend,
       };
       player.playerScore = computePlayerScore(player, 'nfl');
+      const scoredPlayer = applyNflAwardFloors(player, effectiveEra);
       index += 1;
 
-      const identity = normalizePlayerName(player.name);
+      const identity = normalizePlayerName(scoredPlayer.name);
       const existing = deduped.get(identity);
-      if (!existing || player.playerScore > existing.playerScore) deduped.set(identity, player);
+      if (!existing || scoredPlayer.playerScore > existing.playerScore) deduped.set(identity, scoredPlayer);
     }
   }
 

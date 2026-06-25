@@ -5,11 +5,14 @@ import type { RerollState } from '@/lib/types';
 interface Props {
   rerolls: RerollState;
   onTeamReroll: () => void;
-  onEraReroll: () => void;
   isLoading: boolean;
 }
 
-export default function RerollBar({ rerolls, onTeamReroll, onEraReroll, isLoading }: Props) {
+const MAX_TEAM_REROLLS = 3;
+
+export default function RerollBar({ rerolls, onTeamReroll, isLoading }: Props) {
+  const remainingTeamRerolls = Math.max(0, MAX_TEAM_REROLLS - rerolls.teamRerollsUsed);
+
   return (
     <div className="flex flex-wrap gap-2 mb-4">
       <div className="flex items-center gap-1.5 mr-2">
@@ -17,27 +20,15 @@ export default function RerollBar({ rerolls, onTeamReroll, onEraReroll, isLoadin
       </div>
 
       <RerollButton
-        icon="🔀"
-        label="New Team"
-        sublabel="same era"
-        used={rerolls.teamUsed}
+        label="Reroll Team"
+        sublabel={`${remainingTeamRerolls} left`}
+        used={remainingTeamRerolls === 0}
         disabled={isLoading}
         onClick={onTeamReroll}
-        tooltip="Keep the era, get a different team"
-      />
-
-      <RerollButton
-        icon="🎲"
-        label="New Era"
-        sublabel="& team"
-        used={rerolls.eraUsed}
-        disabled={isLoading}
-        onClick={onEraReroll}
-        tooltip="Get a completely new random era and team"
+        tooltip="Roll a new team and a new era"
       />
 
       <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-black/20 border border-white/5 text-gray-500">
-        <span>🔄</span>
         <div>
           <div className={`font-medium ${rerolls.positionSwapUsed ? 'line-through' : 'text-gray-300'}`}>
             Position Swap
@@ -45,7 +36,7 @@ export default function RerollBar({ rerolls, onTeamReroll, onEraReroll, isLoadin
           <div className="text-gray-600 text-[10px]">click roster slot</div>
         </div>
         {rerolls.positionSwapUsed && (
-          <span className="ml-1 text-red-500 text-xs">✓ used</span>
+          <span className="ml-1 text-red-500 text-xs">used</span>
         )}
       </div>
     </div>
@@ -53,7 +44,6 @@ export default function RerollBar({ rerolls, onTeamReroll, onEraReroll, isLoadin
 }
 
 interface RerollButtonProps {
-  icon: string;
   label: string;
   sublabel: string;
   used: boolean;
@@ -62,7 +52,7 @@ interface RerollButtonProps {
   tooltip: string;
 }
 
-function RerollButton({ icon, label, sublabel, used, disabled, onClick, tooltip }: RerollButtonProps) {
+function RerollButton({ label, sublabel, used, disabled, onClick, tooltip }: RerollButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -79,12 +69,11 @@ function RerollButton({ icon, label, sublabel, used, disabled, onClick, tooltip 
         }
       `}
     >
-      <span>{icon}</span>
       <div>
         <div className={used ? 'line-through text-gray-600' : ''}>{label}</div>
         <div className="text-gray-600 text-[10px]">{sublabel}</div>
       </div>
-      {used && <span className="ml-1 text-red-500">✓</span>}
+      {used && <span className="ml-1 text-red-500">used</span>}
     </button>
   );
 }
