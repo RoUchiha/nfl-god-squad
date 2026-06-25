@@ -251,22 +251,37 @@ function overlapDistance(player: DepthPlayer, era: Era): number {
   return player.from - era.endYear;
 }
 
+function playerIdentity(player: DepthPlayer | Player): string {
+  return player.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function selectByPosition(
   players: DepthPlayer[],
   era: Era,
   position: SkillPosition,
   count: number,
-  excluded = new Set<DepthPlayer>(),
+  excludedNames = new Set<string>(),
 ): DepthPlayer[] {
-  return players
-    .filter(player => player.position === position && overlapDistance(player, era) === 0 && !excluded.has(player))
+  const seen = new Set(excludedNames);
+  const selected: DepthPlayer[] = [];
+  const candidates = players
+    .filter(player => player.position === position && overlapDistance(player, era) === 0 && !excludedNames.has(playerIdentity(player)))
     .sort((a, b) =>
       (b.isLegend ? 1 : 0) - (a.isLegend ? 1 : 0) ||
       (b.isAllStar ? 1 : 0) - (a.isAllStar ? 1 : 0) ||
       (b.bestSeasonYear ?? b.to) - (a.bestSeasonYear ?? a.to) ||
       b.to - a.to
-    )
-    .slice(0, count);
+    );
+
+  for (const candidate of candidates) {
+    const identity = playerIdentity(candidate);
+    if (seen.has(identity)) continue;
+    selected.push(candidate);
+    seen.add(identity);
+    if (selected.length === count) break;
+  }
+
+  return selected;
 }
 
 function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, index: number): Player {
@@ -354,27 +369,26 @@ export function buildFranchiseDepthNFLPlayers(team: HistoricalTeam, era: Era): P
     ...(NFLVERSE_GENERATED_DEPTH_PLAYERS[team.id] ?? []),
   ];
   const selectedSources: DepthPlayer[] = [];
-  const excluded = new Set<DepthPlayer>();
+  const excludedNames = new Set<string>();
   const add = (items: DepthPlayer[]) => {
     for (const item of items) {
       selectedSources.push(item);
-      excluded.add(item);
+      excludedNames.add(playerIdentity(item));
     }
   };
 
-  const qbs = selectByPosition(depth, era, 'QB', 1, excluded);
-  const rbs = selectByPosition(depth, era, 'RB', 1, excluded);
-  const wrs = selectByPosition(depth, era, 'WR', 2, excluded);
-  const tes = selectByPosition(depth, era, 'TE', 1, excluded);
+  const qbs = selectByPosition(depth, era, 'QB', 1, excludedNames);
+  add(qbs);
+  const rbs = selectByPosition(depth, era, 'RB', 1, excludedNames);
+  add(rbs);
+  const wrs = selectByPosition(depth, era, 'WR', 2, excludedNames);
+  add(wrs);
+  const tes = selectByPosition(depth, era, 'TE', 1, excludedNames);
+  add(tes);
   if (qbs.length < 1 || rbs.length < 1 || wrs.length < 2 || tes.length < 1) return [];
 
-  add(qbs);
-  add(rbs);
-  add(wrs);
-  add(tes);
-
   const flex = depth
-    .filter(player => ['RB', 'WR', 'TE'].includes(player.position) && overlapDistance(player, era) === 0 && !excluded.has(player))
+    .filter(player => ['RB', 'WR', 'TE'].includes(player.position) && overlapDistance(player, era) === 0 && !excludedNames.has(playerIdentity(player)))
     .sort((a, b) =>
       (b.isLegend ? 1 : 0) - (a.isLegend ? 1 : 0) ||
       (b.isAllStar ? 1 : 0) - (a.isAllStar ? 1 : 0) ||

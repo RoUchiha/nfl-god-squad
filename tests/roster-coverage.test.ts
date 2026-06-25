@@ -62,6 +62,14 @@ describe('NFL Standard Mode roster coverage', () => {
     }
   });
 
+  it('does not duplicate the same named player inside one team-era pool', async () => {
+    for (const { team, era } of getCuratedNFLEraCatalog()) {
+      const players = await fetchNFLPlayers(team, era);
+      const names = players.map(player => player.name.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      expect(new Set(names).size, `${team.abbreviation} ${era.startYear}-${era.endYear}`).toBe(names.length);
+    }
+  });
+
   it('floors AP MVP winners from the rolled era at 90+', async () => {
     const expectedMvpCards = [
       { team: 'BUF', eraStart: 2020, name: 'Josh Allen' },
