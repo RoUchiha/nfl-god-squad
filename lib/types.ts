@@ -146,6 +146,65 @@ export interface GameResult {
   win: boolean;
   scoreDiff: number;
   opponentTier: string;
+  opponentTeamId?: string;
+  opponentName?: string;
+  opponentAbbreviation?: string;
+  opponentGspr?: number;
+  isHome?: boolean;
+  teamScore?: number;
+  opponentScore?: number;
+}
+
+export interface TeamCompositionAnalysis {
+  pros: string[];
+  cons: string[];
+}
+
+export interface LeagueStanding {
+  rank: number;
+  conferenceRank: number;
+  teamId: string;
+  name: string;
+  city: string;
+  abbreviation: string;
+  conference: string;
+  wins: number;
+  losses: number;
+  gspr: number;
+  powerScore: number;
+  isCustomTeam?: boolean;
+}
+
+export interface NFLTeamStrength {
+  teamId: string;
+  name: string;
+  city: string;
+  abbreviation: string;
+  conference: 'AFC' | 'NFC';
+  gspr: number;
+  offenseScore: number;
+  defenseScore: number;
+  snapshotDate: string;
+}
+
+export interface PlayerSeasonStatLine {
+  playerId: string;
+  name: string;
+  position: Position;
+  slotLabel: string;
+  playerScore: number;
+  gamesPlayed: number;
+  passingYards?: number;
+  passingTDs?: number;
+  rushingYards?: number;
+  rushingTDs?: number;
+  receivingYards?: number;
+  receivingTDs?: number;
+  receptions?: number;
+  sacksAllowed?: number;
+  pointsAllowed?: number;
+  sacks?: number;
+  takeaways?: number;
 }
 
 export interface SeasonResults {
@@ -155,6 +214,10 @@ export interface SeasonResults {
   totalGames: number;
   games: GameResult[];
   teamPower: TeamPower;
+  compositionAnalysis?: TeamCompositionAnalysis;
+  leagueStandings?: LeagueStanding[];
+  rosterStats?: PlayerSeasonStatLine[];
+  teamStrengthSnapshotDate?: string;
   isUndefeated: boolean;
   longestWinStreak: number;
   achievement: string;

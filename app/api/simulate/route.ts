@@ -5,6 +5,8 @@ import { computeTeamGSPR } from '@/lib/algorithms/powerRating';
 import { simulateSeason } from '@/lib/algorithms/simulator';
 import { canonicalizeSimulationRoster, validateSimulationRoster } from '@/lib/simulationRoster';
 import { checkRateLimit, getClientIp, isTrustedMutationRequest, readJsonBody } from '@/lib/security';
+import { getHardcodedNflTeamStrengths } from '@/lib/nflLeague';
+import { analyzeTeamComposition } from '@/lib/teamComposition';
 
 const RateStat = z.number().finite().min(0).max(1);
 const CountStat = z.number().finite().min(0).max(10000);
@@ -123,7 +125,8 @@ export async function POST(req: NextRequest) {
   }
 
   const teamPower = computeTeamGSPR(canonical.slots, 'nfl', 'combined');
-  const results = simulateSeason(teamPower, 'nfl');
+  const compositionAnalysis = analyzeTeamComposition(canonical.slots);
+  const results = simulateSeason(teamPower, 'nfl', compositionAnalysis, getHardcodedNflTeamStrengths(), canonical.slots);
 
   return NextResponse.json(results, {
     headers: {

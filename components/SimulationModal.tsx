@@ -35,7 +35,7 @@ export default function SimulationModal({ results, onClose, onNewGame }: Props) 
     >
       <div
         className={`
-          relative w-full max-w-lg rounded-2xl overflow-hidden
+          relative w-full max-w-4xl rounded-2xl overflow-hidden
           bg-[#111] border
           ${results.isUndefeated ? 'border-red-500 celebrate' : 'border-white/10'}
           animate-bounce-in
@@ -48,7 +48,7 @@ export default function SimulationModal({ results, onClose, onNewGame }: Props) 
         />
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 max-h-[88vh] overflow-y-auto">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -96,6 +96,13 @@ export default function SimulationModal({ results, onClose, onNewGame }: Props) 
             <StatBox label="Games" value={String(results.totalGames)} />
           </div>
 
+          {(results.compositionAnalysis?.pros.length || results.compositionAnalysis?.cons.length) ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <InsightBox label="Why It Worked" lines={results.compositionAnalysis?.pros ?? []} />
+              <InsightBox label="Pressure Points" lines={results.compositionAnalysis?.cons ?? []} />
+            </div>
+          ) : null}
+
           {/* Power breakdown */}
           <div className="mt-4 p-3 bg-black/30 rounded-lg">
             <div className="text-xs text-gray-600 uppercase tracking-wider mb-2">Team Breakdown</div>
@@ -105,6 +112,38 @@ export default function SimulationModal({ results, onClose, onNewGame }: Props) 
               ))}
             </div>
           </div>
+
+          {results.rosterStats && results.rosterStats.length > 0 && (
+            <div className="mt-4 p-3 bg-black/30 rounded-lg">
+              <div className="text-xs text-gray-600 uppercase tracking-wider mb-2">Roster Production</div>
+              <div className="space-y-1">
+                {results.rosterStats.map(player => (
+                  <div key={player.playerId} className="grid grid-cols-[1fr_auto] gap-3 text-xs">
+                    <span className="text-gray-300 truncate">{player.name} <span className="text-gray-600">({player.slotLabel})</span></span>
+                    <span className="text-gray-500 tabular-nums">{statSummary(player)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {results.leagueStandings && results.leagueStandings.length > 0 && (
+            <div className="mt-4 p-3 bg-black/30 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs text-gray-600 uppercase tracking-wider">Power Ranking</div>
+                {results.teamStrengthSnapshotDate && <div className="text-[10px] text-gray-700">{results.teamStrengthSnapshotDate}</div>}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+                {results.leagueStandings.slice(0, 12).map(team => (
+                  <div key={team.teamId} className={`grid grid-cols-[32px_1fr_auto] gap-2 text-xs ${team.isCustomTeam ? 'text-white font-bold' : 'text-gray-400'}`}>
+                    <span className="tabular-nums text-gray-600">#{team.rank}</span>
+                    <span className="truncate">{team.city} {team.name}</span>
+                    <span className="tabular-nums">{team.wins}-{team.losses}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* CTA buttons */}
           <div className="flex gap-3 mt-5">
@@ -158,4 +197,28 @@ function StatBox({ label, value }: { label: string; value: string }) {
       <div className="text-[10px] text-gray-600 uppercase tracking-wider">{label}</div>
     </div>
   );
+}
+
+function InsightBox({ label, lines }: { label: string; lines: string[] }) {
+  return (
+    <div className="p-3 bg-black/30 rounded-lg">
+      <div className="text-xs text-gray-600 uppercase tracking-wider mb-2">{label}</div>
+      {lines.length === 0 ? (
+        <div className="text-xs text-gray-600">No major notes.</div>
+      ) : (
+        <div className="space-y-1">
+          {lines.map(line => <div key={line} className="text-xs text-gray-400">{line}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function statSummary(player: NonNullable<SeasonResults['rosterStats']>[number]): string {
+  if (player.position === 'QB') return `${player.passingYards ?? 0} yds, ${player.passingTDs ?? 0} TD`;
+  if (player.position === 'RB') return `${player.rushingYards ?? 0} rush, ${player.rushingTDs ?? 0} TD`;
+  if (player.position === 'WR' || player.position === 'TE') return `${player.receptions ?? 0} rec, ${player.receivingYards ?? 0} yds`;
+  if (player.position === 'OL') return `${player.sacksAllowed ?? 0} sacks allowed`;
+  if (player.position === 'DEF') return `${player.pointsAllowed ?? 0} PA, ${player.takeaways ?? 0} takeaways`;
+  return `${Math.round(player.playerScore)} rating`;
 }

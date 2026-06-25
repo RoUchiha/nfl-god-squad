@@ -7,12 +7,15 @@ interface Props {
   sport: Sport;
   onRemove: (slotId: string) => void;
   onPositionSwap: (slotId: string, position: Player['position'] | Player['position'][]) => void;
+  onGamble?: (slotId: string) => void;
   positionSwapUsed: boolean;
+  gambleAvailable?: boolean;
+  gamblePending?: boolean;
   locked?: boolean;
   justPlacedSlotId: string | null;
 }
 
-export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, positionSwapUsed, locked = false, justPlacedSlotId }: Props) {
+export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, onGamble, positionSwapUsed, gambleAvailable = false, gamblePending = false, locked = false, justPlacedSlotId }: Props) {
   const offenseSlots = slots.filter(s => s.group === 'offense');
   const defenseSlots = slots.filter(s => s.group === 'defense' || s.group === 'pitching' || s.group === 'goalie');
 
@@ -27,7 +30,10 @@ export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, pos
             slots={offenseSlots}
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
+            onGamble={onGamble}
             positionSwapUsed={positionSwapUsed}
+            gambleAvailable={gambleAvailable}
+            gamblePending={gamblePending}
             locked={locked}
             justPlacedSlotId={justPlacedSlotId}
           />
@@ -38,7 +44,10 @@ export default function TeamRoster({ slots, sport, onRemove, onPositionSwap, pos
             slots={defenseSlots}
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
+            onGamble={onGamble}
             positionSwapUsed={positionSwapUsed}
+            gambleAvailable={gambleAvailable}
+            gamblePending={gamblePending}
             locked={locked}
             justPlacedSlotId={justPlacedSlotId}
           />
@@ -53,7 +62,10 @@ function SlotGroup({
   slots,
   onRemove,
   onPositionSwap,
+  onGamble,
   positionSwapUsed,
+  gambleAvailable,
+  gamblePending,
   locked,
   justPlacedSlotId,
 }: {
@@ -61,7 +73,10 @@ function SlotGroup({
   slots: FilledRosterSlot[];
   onRemove: (id: string) => void;
   onPositionSwap: (id: string, pos: Player['position'] | Player['position'][]) => void;
+  onGamble?: (id: string) => void;
   positionSwapUsed: boolean;
+  gambleAvailable: boolean;
+  gamblePending: boolean;
   locked: boolean;
   justPlacedSlotId: string | null;
 }) {
@@ -75,7 +90,10 @@ function SlotGroup({
             slot={slot}
             onRemove={onRemove}
             onPositionSwap={onPositionSwap}
+            onGamble={onGamble}
             positionSwapUsed={positionSwapUsed}
+            gambleAvailable={gambleAvailable}
+            gamblePending={gamblePending}
             locked={locked}
             isJustPlaced={slot.id === justPlacedSlotId}
           />
@@ -89,7 +107,10 @@ function RosterSlot({
   slot,
   onRemove,
   onPositionSwap,
+  onGamble,
   positionSwapUsed,
+  gambleAvailable,
+  gamblePending,
   locked,
   isJustPlaced,
 }: {
@@ -97,7 +118,10 @@ function RosterSlot({
   isJustPlaced: boolean;
   onRemove: (id: string) => void;
   onPositionSwap: (id: string, pos: Player['position'] | Player['position'][]) => void;
+  onGamble?: (id: string) => void;
   positionSwapUsed: boolean;
+  gambleAvailable: boolean;
+  gamblePending: boolean;
   locked: boolean;
 }) {
   const posLabel = Array.isArray(slot.position)
@@ -147,6 +171,17 @@ function RosterSlot({
           className="text-[10px] text-yellow-600 hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity px-1"
         >
           🔄
+        </button>
+      )}
+
+      {!locked && gambleAvailable && onGamble && (
+        <button
+          onClick={() => onGamble(slot.id)}
+          disabled={gamblePending}
+          title="Gamble this slot against a random unseen team-era"
+          className="text-[10px] text-red-500 hover:text-red-300 disabled:opacity-30 transition-colors px-1"
+        >
+          Gamble
         </button>
       )}
 

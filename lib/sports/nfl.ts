@@ -1,6 +1,7 @@
 import type { Player, HistoricalTeam, Era } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
 import { generateTeamEras } from '../constants';
+import { buildFranchiseDepthNFLPlayers } from './nfl-franchise-depth';
 
 export const NFL_TEAMS: HistoricalTeam[] = [
   { id: '22', name: 'Cardinals',  city: 'Arizona',      abbreviation: 'ARI', sport: 'nfl', primaryColor: '#97233F', secondaryColor: '#000000' },
@@ -545,7 +546,7 @@ function bestUnitForGroup(
 function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   const requestedKey = nflEraKey(team.id, era.id);
   const group = COMBINED_ROSTER_GROUP_BY_KEY.get(requestedKey);
-  if (!group) return generateFallbackNFLPlayers(team, era);
+  if (!group) return buildFranchiseDepthNFLPlayers(team, era);
 
   const rootEraId = parsedHistoricalKey(group.rootKey).eraId;
   const effectiveEra: Era = {
@@ -631,192 +632,9 @@ export function getCuratedNFLEraCatalog(): CuratedNFLEraCatalogEntry[] {
   return curatedCatalogCache;
 }
 
-const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
-
-interface ESPNAthlete {
-  id: string;
-  displayName: string;
-  position?: { abbreviation: string };
-  statistics?: { displayValue?: string; name?: string }[];
-}
-
-function nflPositionMap(pos: string): { position: Player['position']; group: Player['positionGroup'] } {
-  const offense: Record<string, Player['position']> = { QB: 'QB', RB: 'RB', HB: 'RB', FB: 'RB', WR: 'WR', TE: 'TE', K: 'K', P: 'K' };
-  const defense: Record<string, Player['position']> = { DE: 'DE', DT: 'DT', NT: 'DT', OLB: 'LB', MLB: 'LB', ILB: 'LB', LB: 'LB', CB: 'CB', FS: 'S', SS: 'S', S: 'S', DB: 'CB' };
-  if (offense[pos]) return { position: offense[pos], group: 'offense' };
-  if (defense[pos]) return { position: defense[pos], group: 'defense' };
-  return { position: 'LB', group: 'defense' };
-}
-
-function extractNFLStats(position: Player['position'], stats: Record<string, number>): Player['stats'] {
-  switch (position) {
-    case 'QB':  return { passingYards: stats['passingYards'] ?? 0, passingTDs: stats['passingTouchdowns'] ?? 0, passerRating: stats['QBRating'] ?? 85, interceptions: stats['interceptions'] ?? 0 };
-    case 'RB':  return { rushingYards: stats['rushingYards'] ?? 0, rushingTDs: stats['rushingTouchdowns'] ?? 0, receptions: stats['receptions'] ?? 0 };
-    case 'WR':
-    case 'TE':  return { receivingYards: stats['receivingYards'] ?? 0, receivingTDs: stats['receivingTouchdowns'] ?? 0, receptions: stats['receptions'] ?? 0 };
-    case 'DE':
-    case 'DT':  return { sacks: stats['sacks'] ?? 0, tackles: stats['totalTackles'] ?? 0, forcedFumbles: stats['fumblesForced'] ?? 0 };
-    case 'LB':  return { sacks: stats['sacks'] ?? 0, tackles: stats['totalTackles'] ?? 0, interceptions: stats['interceptions'] ?? 0, forcedFumbles: stats['fumblesForced'] ?? 0 };
-    case 'CB':
-    case 'S':   return { interceptions: stats['interceptions'] ?? 0, tackles: stats['totalTackles'] ?? 0, passDeflections: stats['passesDefended'] ?? 0 };
-    default:    return {};
-  }
-}
-
-async function fetchESPNRoster(teamId: string, year: number): Promise<Player[]> {
-  try {
-    const res = await fetch(`${ESPN_BASE}/teams/${teamId}/roster?season=${year}`, { next: { revalidate: 3600 } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const athletes: ESPNAthlete[] = [
-      ...(data.athletes?.[0]?.items ?? []),
-      ...(data.athletes?.[1]?.items ?? []),
-      ...(data.athletes?.[2]?.items ?? []),
-    ];
-
-    return athletes.map(athlete => {
-      const pos = athlete.position?.abbreviation ?? 'LB';
-      const { position, group } = nflPositionMap(pos);
-      const statsMap: Record<string, number> = {};
-      for (const s of athlete.statistics ?? []) {
-        if (s.name && s.displayValue) {
-          const v = parseFloat(s.displayValue.replace(',', ''));
-          if (!isNaN(v)) statsMap[s.name] = v;
-        }
-      }
-      const p: Player = {
-        id: `nfl-${athlete.id}-${year}`,
-        name: athlete.displayName,
-        position,
-        positionGroup: group,
-        yearsWithTeam: `${year}`,
-        stats: extractNFLStats(position, statsMap),
-        playerScore: 0,
-      };
-      p.playerScore = computePlayerScore(p, 'nfl');
-      return p;
-    }).filter(p => p.name && p.name.trim().length > 0);
-  } catch {
-    return [];
-  }
-}
-
 export async function fetchNFLPlayers(team: HistoricalTeam, era: Era): Promise<Player[]> {
   // The playable catalog is backed by synchronous canonical rosters so queue,
   // browser, and simulation validation all agree on the same player identities.
   const canonical = getCuratedNFLPlayers(team, era);
-  if (canonical.length >= 8) return canonical;
-
-  // ESPN API: sample up to 4 evenly-spaced years across the era
-  const years = eraYears(era.startYear, era.endYear, 4);
-  const byName = new Map<string, Player>();
-
-  await Promise.all(years.map(async year => {
-    const players = await fetchESPNRoster(team.id, year);
-    for (const p of players) {
-      const existing = byName.get(p.name);
-      if (!existing || p.playerScore > existing.playerScore) {
-        p.eraId = era.id;
-        p.teamId = team.id;
-        p.yearsWithTeam = `${era.startYear}–${era.endYear}`;
-        byName.set(p.name, p);
-      }
-    }
-  }));
-
-  const all = Array.from(byName.values()).sort((a, b) => b.playerScore - a.playerScore);
-  if (all.length < 8) return [];
-  return all;
-}
-
-function eraYears(start: number, end: number, n: number): number[] {
-  const clampedEnd = Math.min(end, 2024);
-  const clampedStart = Math.max(start, 1970);
-  if (clampedStart >= clampedEnd) return [clampedEnd];
-  const step = (clampedEnd - clampedStart) / Math.max(n - 1, 1);
-  return Array.from({ length: n }, (_, i) => Math.round(clampedStart + i * step));
-}
-
-const NFL_FIRST = ['Dak', 'Lamar', 'Josh', 'Patrick', 'Justin', 'Jalen', 'Trevor', 'Tua', 'Sam', 'Marcus', 'Tyreek', 'Davante', 'Stefon', 'Travis', 'Dalton', 'Micah', 'Myles', 'Von', 'Aaron', 'Richard', 'Derrick', 'Christian', 'Nick', 'Roquan', 'Chandler'];
-const NFL_LAST  = ['Smith', 'Jackson', 'Allen', 'Mahomes', 'Herbert', 'Hurts', 'Lawrence', 'Tagovailoa', 'Carr', 'Jones', 'Hill', 'Adams', 'Diggs', 'Kelce', 'Schultz', 'Parsons', 'Garrett', 'Miller', 'Donald', 'Sherman', 'Henry', 'McCaffrey', 'Chubb', 'Walker', 'Jones'];
-
-function nflFakeName(seed: number): string {
-  return `${NFL_FIRST[seed % NFL_FIRST.length]} ${NFL_LAST[(seed * 7 + 5) % NFL_LAST.length]}`;
-}
-
-function seededRange(seed: number, offset: number, span: number): number {
-  const raw = Math.sin(seed * 12.9898 + offset * 78.233) * 43758.5453;
-  return Math.floor((raw - Math.floor(raw)) * span);
-}
-
-function generateFallbackNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
-  const templates: Array<{ pos: Player['position']; group: Player['positionGroup']; idx: number; label: string }> = [
-    { pos: 'QB', group: 'offense', idx: 0, label: 'Field General' },
-    { pos: 'RB', group: 'offense', idx: 1, label: 'Feature Back' },
-    { pos: 'RB', group: 'offense', idx: 2, label: 'Changeup Back' },
-    { pos: 'WR', group: 'offense', idx: 3, label: 'Boundary WR' },
-    { pos: 'WR', group: 'offense', idx: 4, label: 'Slot WR' },
-    { pos: 'WR', group: 'offense', idx: 5, label: 'Deep Threat' },
-    { pos: 'TE', group: 'offense', idx: 6, label: 'Move TE' },
-    { pos: 'OL', group: 'offense', idx: 7, label: 'O-Line' },
-    { pos: 'DEF', group: 'defense', idx: 8, label: 'Defense' },
-  ];
-  const teamSeed = parseInt(team.id, 10) * 37 + era.startYear * 13;
-
-  return templates.map(({ pos, group, idx, label }) => {
-    const s = teamSeed + idx * 17;
-    let stats: Player['stats'] = {};
-    if (pos === 'QB') stats = { passingYards: 2800 + seededRange(s, 1, 1200), passingTDs: 18 + seededRange(s, 2, 13), passerRating: 78 + seededRange(s, 3, 18), interceptions: 8 + seededRange(s, 4, 9) };
-    else if (pos === 'RB') stats = { rushingYards: 650 + seededRange(s, 5, 550), rushingTDs: 5 + seededRange(s, 6, 8), receptions: 20 + seededRange(s, 7, 28), receivingYards: 150 + seededRange(s, 8, 350) };
-    else if (pos === 'WR') stats = { receivingYards: 650 + seededRange(s, 9, 500), receivingTDs: 4 + seededRange(s, 10, 7), receptions: 45 + seededRange(s, 11, 35) };
-    else if (pos === 'TE') stats = { receivingYards: 420 + seededRange(s, 12, 380), receivingTDs: 3 + seededRange(s, 13, 6), receptions: 35 + seededRange(s, 14, 30) };
-    else if (pos === 'OL') stats = { sacksAllowed: 24 + seededRange(s, 15, 18), lineRank: 8 + seededRange(s, 16, 15), runBlockRank: 8 + seededRange(s, 17, 15), passBlockRank: 8 + seededRange(s, 18, 15) };
-    else if (pos === 'DEF') stats = { pointsAllowed: 280 + seededRange(s, 19, 90), yardsAllowed: 4600 + seededRange(s, 20, 1100), sacks: 30 + seededRange(s, 21, 18), takeaways: 18 + seededRange(s, 22, 16) };
-
-    const p: Player = {
-      id: `nfl-generated-${team.id}-${era.startYear}-${idx}`,
-      name: `${era.startYear} ${team.abbreviation} ${label}`,
-      position: pos,
-      positionGroup: group,
-      eraId: era.id,
-      teamId: team.id,
-      bestSeasonYear: era.startYear + seededRange(s, 23, Math.max(1, era.endYear - era.startYear + 1)),
-      yearsWithTeam: `${era.startYear}-${era.endYear}`,
-      stats,
-      playerScore: 0,
-    };
-    p.playerScore = computePlayerScore(p, 'nfl');
-    return p;
-  }).sort((a, b) => b.playerScore - a.playerScore);
-}
-
-function generateLegacyFallbackNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
-  const templates: Array<{ pos: Player['position']; group: Player['positionGroup']; idx: number }> = [
-    { pos: 'QB', group: 'offense', idx: 0 },
-    { pos: 'RB', group: 'offense', idx: 1 }, { pos: 'RB', group: 'offense', idx: 2 },
-    { pos: 'WR', group: 'offense', idx: 3 }, { pos: 'WR', group: 'offense', idx: 4 }, { pos: 'WR', group: 'offense', idx: 5 },
-    { pos: 'TE', group: 'offense', idx: 6 }, { pos: 'TE', group: 'offense', idx: 7 },
-    { pos: 'K',  group: 'offense', idx: 8 },
-    { pos: 'DE', group: 'defense', idx: 9  }, { pos: 'DE', group: 'defense', idx: 10 },
-    { pos: 'DT', group: 'defense', idx: 11 }, { pos: 'DT', group: 'defense', idx: 12 },
-    { pos: 'LB', group: 'defense', idx: 13 }, { pos: 'LB', group: 'defense', idx: 14 }, { pos: 'LB', group: 'defense', idx: 15 },
-    { pos: 'CB', group: 'defense', idx: 16 }, { pos: 'CB', group: 'defense', idx: 17 },
-    { pos: 'S',  group: 'defense', idx: 18 }, { pos: 'S',  group: 'defense', idx: 19 },
-  ];
-  const teamSeed = parseInt(team.id, 10) * 11;
-  return templates.map(({ pos, group, idx }) => {
-    const s = teamSeed + idx;
-    let stats: Player['stats'] = {};
-    if (pos === 'QB') stats = { passingYards: 3500 + (s * 97 % 1500), passingTDs: 25 + (s * 13 % 15), passerRating: 85 + (s * 7 % 15), interceptions: 6 + (s % 8) };
-    else if (pos === 'RB') stats = { rushingYards: 900 + (s * 83 % 700), rushingTDs: 8 + (s * 11 % 7), receptions: 30 + (s % 30) };
-    else if (pos === 'WR') stats = { receivingYards: 800 + (s * 73 % 700), receivingTDs: 6 + (s * 9 % 8), receptions: 60 + (s % 40) };
-    else if (pos === 'TE') stats = { receivingYards: 600 + (s * 61 % 500), receivingTDs: 5 + (s % 6), receptions: 50 + (s % 30) };
-    else if (pos === 'DE') stats = { sacks: 10 + (s * 3 % 10), tackles: 50 + (s * 5 % 30), forcedFumbles: 1 + s % 4 };
-    else if (pos === 'DT') stats = { sacks: 5 + (s * 2 % 6), tackles: 45 + (s * 4 % 25), forcedFumbles: s % 3 };
-    else if (pos === 'LB') stats = { sacks: 4 + (s % 5), tackles: 100 + (s * 7 % 50), interceptions: s % 3, forcedFumbles: 1 + s % 3 };
-    else if (pos === 'CB' || pos === 'S') stats = { interceptions: 2 + (s * 3 % 5), tackles: 65 + (s * 6 % 35), passDeflections: 6 + (s % 8) };
-    const p: Player = { id: `nfl-fb-${team.id}-${idx}`, name: nflFakeName(s), position: pos, positionGroup: group, eraId: era.id, teamId: team.id, yearsWithTeam: `${era.startYear}–${era.endYear}`, stats, playerScore: 0 };
-    p.playerScore = computePlayerScore(p, 'nfl');
-    return p;
-  }).sort((a, b) => b.playerScore - a.playerScore);
+  return canonical.length >= 8 ? canonical : [];
 }

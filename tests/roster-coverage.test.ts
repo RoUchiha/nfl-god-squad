@@ -28,4 +28,16 @@ describe('NFL Standard Mode roster coverage', () => {
       expect(players.some(player => ['DE', 'DT', 'LB', 'CB', 'S', 'K'].includes(player.position))).toBe(false);
     }
   });
+
+  it('does not expose generated placeholder player labels in playable rosters', async () => {
+    const placeholderPattern = /\b(Field General|Feature Back|Changeup Back|Boundary WR|Slot WR|Deep Threat|Move TE)\b/i;
+
+    for (const { team, era } of getCuratedNFLEraCatalog()) {
+      const players = await fetchNFLPlayers(team, era);
+      for (const player of players) {
+        expect(player.name).not.toMatch(placeholderPattern);
+        expect(player.name).not.toMatch(/^\d{4}\s+[A-Z]{2,4}\s+/);
+      }
+    }
+  });
 });

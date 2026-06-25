@@ -97,3 +97,14 @@ export function hasTeamReroll(queue: EraQueueItem[], teamId: string, currentStar
 export function hasEraReroll(queue: EraQueueItem[], teamId: string, eraId: string): boolean {
   return queue.some(item => item.team.id === teamId && item.era.id !== eraId);
 }
+
+export function pickGambleEra(
+  queue: EraQueueItem[],
+  rng: Rng = Math.random,
+): { item: EraQueueItem; newQueue: EraQueueItem[] } | null {
+  if (queue.length === 0) return null;
+  const index = weightedPickIndex(queue, rng);
+  const newQueue = [...queue];
+  const [item] = newQueue.splice(index, 1);
+  return { item, newQueue };
+}

@@ -8,7 +8,8 @@ import type {
 } from '@/lib/types';
 import { getRosterTemplates, SPORT_CONFIG } from '@/lib/constants';
 import { computeTeamGSPR } from '@/lib/algorithms/powerRating';
-import { buildEraQueue, rerollTeam, rerollEra, type EraQueueItem } from '@/lib/eraQueue';
+import { buildEraQueue, rerollTeam, rerollEra, pickGambleEra, type EraQueueItem } from '@/lib/eraQueue';
+import { selectGambleReplacement } from '@/lib/gamble';
 import EraCard from './EraCard';
 import PlayerPool from './PlayerPool';
 import TeamRoster from './TeamRoster';
@@ -66,6 +67,8 @@ export default function GameContainer() {
   const [results, setResults]       = useState<SeasonResults | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [gameplayLocked, setGameplayLocked] = useState(false);
+  const [gambleUsed, setGambleUsed] = useState(false);
+  const [gamblePending, setGamblePending] = useState(false);
 
   // ── Derived ─────────────────────────────────────────────────────────────
   const cfg            = SPORT_CONFIG[sport];
@@ -175,6 +178,8 @@ export default function GameContainer() {
     setResults(null);
     setShowResults(false);
     setGameplayLocked(false);
+    setGambleUsed(false);
+    setGamblePending(false);
     setPickPhase('loading');
     startGame(sport);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -326,10 +331,39 @@ export default function GameContainer() {
   }, [gameplayLocked, rerolls.positionSwapUsed]);
 
   const handleRemovePlayer = useCallback((slotId: string) => {
-    if (gameplayLocked) return;
+    if (gameplayLocked || gamblePending) return;
     setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
     if (justPlacedSlotId === slotId) setJustPlacedSlotId(null);
-  }, [gameplayLocked, justPlacedSlotId]);
+  }, [gameplayLocked, gamblePending, justPlacedSlotId]);
+
+  const handleGamble = useCallback(async (slotId: string) => {
+    if (!isRosterFull || gameplayLocked || gambleUsed || gamblePending) return;
+    setGamblePending(true);
+    try {
+      let queue = eraQueueRef.current.length > 0 ? eraQueueRef.current : buildEraQueue();
+      for (let attempt = 0; attempt < 24 && queue.length > 0; attempt++) {
+        const picked = pickGambleEra(queue);
+        if (!picked) break;
+        queue = picked.newQueue;
+        const res = await fetch(`/api/players/${sport}?teamId=${encodeURIComponent(picked.item.team.id)}&eraId=${encodeURIComponent(picked.item.era.id)}`);
+        if (!res.ok) continue;
+        const data = await res.json() as PlayersResponse;
+        const replacement = selectGambleReplacement(slots, slotId, data.players);
+        if (!replacement) continue;
+        eraQueueRef.current = queue;
+        setEraQueue(queue);
+        setSlots(prev => prev.map(slot => slot.id === slotId ? { ...slot, player: replacement } : slot));
+        setJustPlacedSlotId(slotId);
+        setGambleUsed(true);
+        return;
+      }
+      setError('No compatible Gamble replacement was available from the remaining team-eras.');
+    } catch {
+      setError('Gamble failed. Please try again.');
+    } finally {
+      setGamblePending(false);
+    }
+  }, [gameplayLocked, gamblePending, gambleUsed, isRosterFull, slots, sport]);
 
   const handleModeChange = (m: DraftMode) => {
     setMode(m);
@@ -340,7 +374,7 @@ export default function GameContainer() {
   // Simulate
   // ─────────────────────────────────────────────────────────────────────────
   const handleSimulate = async () => {
-    if (!isRosterFull || gameplayLocked) return;
+    if (!isRosterFull || gameplayLocked || gamblePending) return;
     setGameplayLocked(true);
     setIsSimulating(true);
     try {
@@ -367,6 +401,8 @@ export default function GameContainer() {
     setSlots(prev => prev.map(s => ({ ...s, player: null })));
     setRerolls({ teamUsed: false, eraUsed: false, positionSwapUsed: false });
     setGameplayLocked(false);
+    setGambleUsed(false);
+    setGamblePending(false);
     setJustPlacedSlotId(null);
     setSwapMode(null);
     setPickPhase('loading');
@@ -488,6 +524,9 @@ export default function GameContainer() {
             onRemove={handleRemovePlayer}
             onPositionSwap={handlePositionSwap}
             positionSwapUsed={rerolls.positionSwapUsed || gameplayLocked}
+            onGamble={handleGamble}
+            gambleAvailable={isRosterFull && !gambleUsed && !gameplayLocked}
+            gamblePending={gamblePending}
             locked={gameplayLocked}
             justPlacedSlotId={justPlacedSlotId}
           />
@@ -500,21 +539,21 @@ export default function GameContainer() {
 
             <button
               onClick={handleSimulate}
-              disabled={!isRosterFull || isSimulating || gameplayLocked}
+              disabled={!isRosterFull || isSimulating || gameplayLocked || gamblePending}
               className={`
                 w-full py-4 rounded-xl font-black text-lg tracking-wide uppercase
                 transition-all duration-200
-                ${isRosterFull && !isSimulating && !gameplayLocked
+                ${isRosterFull && !isSimulating && !gameplayLocked && !gamblePending
                   ? 'text-white hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer'
                   : 'bg-gray-800 text-gray-600 cursor-not-allowed'
                 }
                 ${isSimulating ? 'animate-pulse' : ''}
               `}
-              style={isRosterFull && !isSimulating && !gameplayLocked ? {
+              style={isRosterFull && !isSimulating && !gameplayLocked && !gamblePending ? {
                 background: `linear-gradient(135deg, ${cfg.primaryColor}, ${cfg.accentColor})`
               } : undefined}
             >
-              {isSimulating ? 'Simulating...' : isRosterFull ? 'Sim Season' : 'Fill Roster to Simulate'}
+              {isSimulating ? 'Simulating...' : gamblePending ? 'Gambling...' : isRosterFull ? 'Sim Season' : 'Fill Roster to Simulate'}
             </button>
 
             <div className="text-center text-xs text-gray-600">
