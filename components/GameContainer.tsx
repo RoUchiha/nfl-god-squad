@@ -17,6 +17,7 @@ import PowerMeter from './PowerMeter';
 import RerollBar from './RerollBar';
 import SimulationModal from './SimulationModal';
 import PlayerPlacementPicker from './PlayerPlacementPicker';
+import PlayerDetailModal from './PlayerDetailModal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pick phase — drives which UI is visible:
@@ -29,6 +30,10 @@ type PickPhase = 'loading' | 'ready' | 'placing' | 'complete';
 
 const MAX_TEAM_REROLLS = 3;
 const MAX_SIMULATIONS = 2;
+
+function positionMatches(slotPosition: FilledRosterSlot['position'], playerPosition: Player['position']): boolean {
+  return Array.isArray(slotPosition) ? slotPosition.includes(playerPosition) : slotPosition === playerPosition;
+}
 
 export default function GameContainer() {
   const loadIdRef    = useRef(0);
@@ -53,9 +58,10 @@ export default function GameContainer() {
 
   // ── Roster ──────────────────────────────────────────────────────────────
   const [slots, setSlots] = useState<FilledRosterSlot[]>([]);
-  const [swapMode, setSwapMode] = useState<{ slotId: string; position: Player['position'] | Player['position'][] } | null>(null);
+  const [swapMode, setSwapMode] = useState<{ slotId: string } | null>(null);
   const [justPlacedSlotId, setJustPlacedSlotId] = useState<string | null>(null);
   const [playerToPlace, setPlayerToPlace] = useState<Player | null>(null);
+  const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
 
   // ── Pick phase ──────────────────────────────────────────────────────────
   const [pickPhase, setPickPhase] = useState<PickPhase>('loading');
@@ -224,14 +230,6 @@ export default function GameContainer() {
       return;
     }
 
-    if (swapMode) {
-      const newSlots = slots.map(s => s.id === swapMode.slotId ? { ...s, player } : s);
-      setSwapMode(null);
-      setJustPlacedSlotId(swapMode.slotId);
-      commitPickAndAdvance(newSlots);
-      return;
-    }
-
     const compatible = slots.filter(s => {
       if (s.player) return false;
       return Array.isArray(s.position)
@@ -257,7 +255,7 @@ export default function GameContainer() {
     setPickPhase('placing');
     setPlayerToPlace(player);
     setJustPlacedSlotId(null);
-  }, [slots, swapMode, commitPickAndAdvance, advancePick, gameplayLocked]);
+  }, [slots, commitPickAndAdvance, advancePick, gameplayLocked]);
 
   // onSkip — called by PlayerPool Skip button
   const handleSkip = useCallback(() => {
@@ -308,18 +306,45 @@ export default function GameContainer() {
     }
   }, [advancePick, gameplayLocked, isLoadingEra, isLoadingPlayers, pickPhase, rerolls.teamRerollsUsed]);
 
-  const handlePositionSwap = useCallback((slotId: string, position: Player['position'] | Player['position'][]) => {
+  const handlePositionSwap = useCallback((slotId: string) => {
     if (gameplayLocked || rerolls.positionSwapUsed) return;
-    setRerolls(r => ({ ...r, positionSwapUsed: true }));
-    setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
-    setSwapMode({ slotId, position });
-  }, [gameplayLocked, rerolls.positionSwapUsed]);
+    const source = slots.find(slot => slot.id === slotId);
+    if (!source?.player) return;
+    setSwapMode({ slotId });
+    setError(null);
+  }, [gameplayLocked, rerolls.positionSwapUsed, slots]);
 
-  const handleRemovePlayer = useCallback((slotId: string) => {
-    if (gameplayLocked || gamblePending) return;
-    setSlots(prev => prev.map(s => s.id === slotId ? { ...s, player: null } : s));
-    if (justPlacedSlotId === slotId) setJustPlacedSlotId(null);
-  }, [gameplayLocked, gamblePending, justPlacedSlotId]);
+  const handleRosterSlotSwap = useCallback((targetSlotId: string) => {
+    if (!swapMode || gameplayLocked || rerolls.positionSwapUsed) return;
+    if (targetSlotId === swapMode.slotId) {
+      setSwapMode(null);
+      return;
+    }
+
+    const source = slots.find(slot => slot.id === swapMode.slotId);
+    const target = slots.find(slot => slot.id === targetSlotId);
+    if (!source?.player || !target?.player) {
+      setError('Choose a filled roster slot to complete the swap.');
+      return;
+    }
+
+    const sourceFitsTarget = positionMatches(target.position, source.player.position);
+    const targetFitsSource = positionMatches(source.position, target.player.position);
+    if (!sourceFitsTarget || !targetFitsSource) {
+      setError(`${source.player.name} and ${target.player.name} are not compatible with each other's roster slots.`);
+      return;
+    }
+
+    setSlots(prev => prev.map(slot => {
+      if (slot.id === source.id) return { ...slot, player: target.player };
+      if (slot.id === target.id) return { ...slot, player: source.player };
+      return slot;
+    }));
+    setRerolls(r => ({ ...r, positionSwapUsed: true }));
+    setJustPlacedSlotId(target.id);
+    setSwapMode(null);
+    setError(null);
+  }, [gameplayLocked, rerolls.positionSwapUsed, slots, swapMode]);
 
   const handleGamble = useCallback(async (slotId: string) => {
     if (!isRosterFull || gameplayLocked || gambleUsed || gamblePending) return;
@@ -393,6 +418,7 @@ export default function GameContainer() {
     setSimulationCount(0);
     setJustPlacedSlotId(null);
     setSwapMode(null);
+    setInspectedPlayer(null);
     setPickPhase('loading');
     startGame(sport);
   };
@@ -441,10 +467,10 @@ export default function GameContainer() {
 
         {/* Swap mode banner */}
         {swapMode && (
-          <div className="mb-3 px-4 py-2 bg-yellow-950/60 border border-yellow-700 rounded-lg text-yellow-300 text-sm flex items-center gap-2">
-            <span>🔄</span>
-            <span>Position swap active — select a player to swap them in.</span>
-            <button onClick={() => setSwapMode(null)} className="ml-auto text-yellow-400 hover:text-yellow-200 text-xs">Cancel</button>
+          <div className="mb-3 flex items-center gap-2 rounded-lg border border-yellow-700 bg-yellow-950/60 px-4 py-2 text-sm text-yellow-300">
+            <span className="font-bold">Swap</span>
+            <span>Click a compatible filled roster slot to switch players.</span>
+            <button onClick={() => setSwapMode(null)} className="ml-auto text-xs text-yellow-400 hover:text-yellow-200">Cancel</button>
           </div>
         )}
 
@@ -508,9 +534,11 @@ export default function GameContainer() {
           <TeamRoster
             slots={slots}
             sport={sport}
-            onRemove={handleRemovePlayer}
+            onInspect={setInspectedPlayer}
             onPositionSwap={handlePositionSwap}
+            onSwapSlotClick={handleRosterSlotSwap}
             positionSwapUsed={rerolls.positionSwapUsed || gameplayLocked}
+            activeSwapSlotId={swapMode?.slotId ?? null}
             onGamble={handleGamble}
             gambleAvailable={isRosterFull && !gambleUsed && !gameplayLocked}
             gamblePending={gamblePending}
@@ -551,6 +579,15 @@ export default function GameContainer() {
                   : '✓ Roster complete — ready to simulate!'
               }
             </div>
+
+            {results && !showResults && (
+              <button
+                onClick={() => setShowResults(true)}
+                className="w-full rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-gray-300 transition-colors hover:border-white/20 hover:text-white"
+              >
+                View Last Results
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -574,6 +611,14 @@ export default function GameContainer() {
           onResimulate={handleSimulate}
           canResimulate={simulationCount < MAX_SIMULATIONS && !isSimulating}
           isResimulating={isSimulating}
+        />
+      )}
+
+      {inspectedPlayer && (
+        <PlayerDetailModal
+          player={inspectedPlayer}
+          sport={sport}
+          onClose={() => setInspectedPlayer(null)}
         />
       )}
     </div>

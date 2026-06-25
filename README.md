@@ -40,6 +40,13 @@ npm test
 npm run build
 ```
 
+## Data Sources
+
+- Modern QB/RB/WR/TE cards and unit stat inputs are generated from nflverse `stats_player` and `stats_team` regular-season releases for 1999-2024.
+- Historical pre-1999 and all-time franchise anchors remain curated so older eras do not rely on placeholder names.
+- Playable team-eras are filtered out unless they can fill Standard Mode with real named QB/RB/WR/TE/FLEX cards plus O-Line and Defense.
+- Refresh generated modern data with `node scripts/generate-nflverse-depth.cjs` after downloading updated nflverse CSVs into `.tmp-data/player-reg` and `.tmp-data/team-reg`.
+
 ## Security
 
 - No API key is required for the curated standalone NFL game.

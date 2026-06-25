@@ -426,6 +426,26 @@ export interface CuratedNFLEraCatalogEntry {
   goatPlayerCount: number;
 }
 
+const STANDARD_SKILL_POSITIONS = new Set<Player['position']>(['QB', 'RB', 'WR', 'TE']);
+
+function hasStandardNFLCoverage(players: Player[]): boolean {
+  const qbs = players.filter(player => player.position === 'QB').length;
+  const rbs = players.filter(player => player.position === 'RB').length;
+  const wrs = players.filter(player => player.position === 'WR').length;
+  const tes = players.filter(player => player.position === 'TE').length;
+  const flexCandidates = players.filter(player => ['RB', 'WR', 'TE'].includes(player.position)).length;
+  return (
+    qbs >= 1 &&
+    rbs >= 1 &&
+    wrs >= 2 &&
+    tes >= 1 &&
+    flexCandidates >= 5 &&
+    players.some(player => player.position === 'OL') &&
+    players.some(player => player.position === 'DEF') &&
+    players.every(player => STANDARD_SKILL_POSITIONS.has(player.position) || player.position === 'OL' || player.position === 'DEF')
+  );
+}
+
 type UnitMeta = {
   offensiveLine: { name: string; bestSeasonYear: number; stats: Player['stats']; isLegend?: boolean };
   defense: { name: string; bestSeasonYear: number; stats: Player['stats']; isLegend?: boolean };
@@ -532,6 +552,34 @@ function buildUnitPlayer(
   return applyNflAwardFloors(player, era);
 }
 
+function selectStandardOffense(players: Player[]): Player[] {
+  const sorted = [...players].sort((a, b) => b.playerScore - a.playerScore || a.name.localeCompare(b.name));
+  const selected: Player[] = [];
+  const selectedIds = new Set<string>();
+  const pick = (position: Player['position'], count: number) => {
+    for (const player of sorted) {
+      if (selected.length >= 6 && count > 0) break;
+      if (selectedIds.has(player.id) || player.position !== position) continue;
+      selected.push(player);
+      selectedIds.add(player.id);
+      count -= 1;
+      if (count === 0) break;
+    }
+    return count === 0;
+  };
+
+  if (!pick('QB', 1)) return [];
+  if (!pick('RB', 1)) return [];
+  if (!pick('WR', 2)) return [];
+  if (!pick('TE', 1)) return [];
+
+  const flex = sorted.find(player => !selectedIds.has(player.id) && ['RB', 'WR', 'TE'].includes(player.position));
+  if (!flex) return [];
+  selected.push(flex);
+
+  return selected;
+}
+
 function bestUnitForGroup(
   team: HistoricalTeam,
   era: Era,
@@ -592,7 +640,10 @@ function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   const defense = bestUnitForGroup(team, effectiveEra, group.keys, 'defense');
   const units = [offensiveLine, defense].filter((player): player is Player => player !== null);
 
-  return [...deduped.values(), ...units].sort((a, b) => b.playerScore - a.playerScore);
+  const offense = selectStandardOffense([...deduped.values()]);
+  if (offense.length < 6 || units.length < 2) return buildFranchiseDepthNFLPlayers(team, era);
+
+  return [...offense, ...units].sort((a, b) => b.playerScore - a.playerScore);
 }
 
 export function getCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
@@ -619,7 +670,8 @@ export function getCuratedNFLEraCatalog(): CuratedNFLEraCatalogEntry[] {
           }
         : era;
 
-      const players = getCuratedNFLPlayers(team, era);
+      const players = getCuratedNFLPlayers(team, catalogEra);
+      if (!hasStandardNFLCoverage(players)) return null;
       return {
         key: nflEraKey(team.id, catalogEra.id),
         team,
@@ -638,5 +690,5 @@ export async function fetchNFLPlayers(team: HistoricalTeam, era: Era): Promise<P
   // The playable catalog is backed by synchronous canonical rosters so queue,
   // browser, and simulation validation all agree on the same player identities.
   const canonical = getCuratedNFLPlayers(team, era);
-  return canonical.length >= 8 ? canonical : [];
+  return hasStandardNFLCoverage(canonical) ? canonical : [];
 }

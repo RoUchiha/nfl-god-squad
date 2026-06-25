@@ -102,14 +102,18 @@ function scoreNFLOffensePlayer(p: Player): number {
     const runRank = s.runBlockRank ?? lineRank;
     const passRank = s.passBlockRank ?? lineRank;
     const sacksAllowed = s.sacksAllowed ?? 35;
+    const qbPassingYards = s.qbPassingYards ?? s.passingYards ?? 3600;
+    const teamRushingYards = s.teamRushingYards ?? s.rushingYards ?? 1650;
     return clamp(
-      82
-      - lineRank * 1.6
-      - runRank * 0.7
-      - passRank * 0.7
-      + Math.max(0, 45 - sacksAllowed) * 0.85,
-      0,
-      500
+      75
+      + Math.max(-8, Math.min(16, (38 - sacksAllowed) * 0.55))
+      + Math.max(-4, Math.min(11, (qbPassingYards - 3400) / 190))
+      + Math.max(-4, Math.min(10, (teamRushingYards - 1500) / 150))
+      + Math.max(-6, Math.min(8, (12 - lineRank) * 0.55))
+      + Math.max(-4, Math.min(5, (14 - runRank) * 0.22))
+      + Math.max(-4, Math.min(5, (14 - passRank) * 0.22)),
+      70,
+      99
     );
   }
 
@@ -170,14 +174,22 @@ function scoreNFLDefensePlayer(p: Player): number {
     const yardsAllowed = s.yardsAllowed ?? 5200;
     const takeaways = s.takeaways ?? 25;
     const sacks = s.sacks ?? 38;
+    const interceptions = s.interceptions ?? 0;
+    const forcedFumbles = s.forcedFumbles ?? 0;
+    const passDeflections = s.passDeflections ?? 0;
+    const tfl = s.defensiveTfl ?? 65;
+    const starBuff = (s.defensiveStarCount ?? 0) * 1.15 + (s.defensiveHofCount ?? 0) * 1.9;
     return clamp(
-      100
-      + Math.max(0, 360 - pointsAllowed) * 0.24
-      + Math.max(0, 5600 - yardsAllowed) * 0.014
-      + sacks * 0.95
-      + takeaways * 1.2,
-      0,
-      500
+      66.5
+      + Math.max(-5, Math.min(5, (265 - pointsAllowed) / 22))
+      + Math.max(-4, Math.min(4, (5000 - yardsAllowed) / 260))
+      + Math.max(-3, Math.min(4, (sacks - 42) * 0.14))
+      + Math.max(-2, Math.min(4, (takeaways - 32) * 0.16))
+      + Math.max(0, Math.min(2, interceptions * 0.04 + forcedFumbles * 0.04))
+      + Math.max(0, Math.min(2, passDeflections * 0.006 + tfl * 0.01))
+      + starBuff,
+      70,
+      95
     );
   }
 
@@ -315,15 +327,19 @@ export function computePlayerScore(player: Player, sport: Sport): number {
       if (player.positionGroup === 'offense') {
         const nflOffAvg: Record<string, number> = { QB: 41, RB: 28, WR: 48, TE: 48, K: 0, OL: 91 };
         const nflOffGoat: Record<string, number> = { QB: 82, RB: 51, WR: 104, TE: 104, K: 0, OL: 132 };
-        const avg  = nflOffAvg[player.position]  ?? 40;
-        const goat = nflOffGoat[player.position] ?? 80;
-        base = avg > 0 ? calibrate(scoreNFLOffensePlayer(player), avg, goat) : scoreNFLOffensePlayer(player);
+        if (player.position === 'OL') {
+          base = scoreNFLOffensePlayer(player);
+        } else {
+          const avg  = nflOffAvg[player.position]  ?? 40;
+          const goat = nflOffGoat[player.position] ?? 80;
+          base = avg > 0 ? calibrate(scoreNFLOffensePlayer(player), avg, goat) : scoreNFLOffensePlayer(player);
+        }
       } else {
         const nflDefAvg: Record<string, number> = { DE: 50, DT: 32, LB: 57, CB: 57, S: 57, DEF: 156 };
         const nflDefGoat: Record<string, number> = { DE: 130, DT: 69, LB: 110, CB: 122, S: 122, DEF: 226 };
         const rawDefenseScore = scoreNFLDefensePlayer(player);
         if (player.position === 'DEF') {
-          base = clamp(75 + (rawDefenseScore - 190) * 0.2, 58, 97);
+          base = rawDefenseScore;
         } else {
           const avg  = nflDefAvg[player.position]  ?? 50;
           const goat = nflDefGoat[player.position] ?? 110;
@@ -353,6 +369,26 @@ export function computePlayerScore(player: Player, sport: Sport): number {
   // isLegend  = Hall of Fame / GOAT tier: floor 88, GOATs can reach 99
   // isAllStar = Multi All-Star level: floor 75, max 95
   // Regular:  natural stats-based score, max 82 (non-accolade players)
+  if (sport === 'nfl') {
+    if (player.position !== 'OL' && player.position !== 'DEF') {
+      base = 70 + (base - 25) * (29 / 74);
+    }
+    if (player.position === 'DEF') {
+      base = Math.min(95, player.isLegend ? Math.max(base, 88) : base);
+    } else if (player.position === 'OL') {
+      base = Math.min(99, player.isLegend ? Math.max(base, 88) : base);
+    } else if (player.isLegend) {
+      base = Math.max(base, 90);
+      base = Math.min(99, base * 1.04);
+    } else if (player.isAllStar) {
+      base = Math.max(base, 82);
+      base = Math.min(96, base * 1.02);
+    } else {
+      base = Math.min(base, 89);
+    }
+    return Math.round(clamp(base, 70, player.position === 'DEF' ? 95 : 99) * 10) / 10;
+  }
+
   if (player.isLegend) {
     base = Math.max(base, 88);                // HOF floor
     base = Math.min(99, base * 1.06);         // GOAT boost — allows Jordan/Gretzky etc. to reach 99

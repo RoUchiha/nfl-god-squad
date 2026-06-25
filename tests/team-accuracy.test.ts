@@ -36,7 +36,7 @@ describe('curated NFL era catalog', () => {
     const catalog = getCuratedNFLEraCatalog();
     const keys = catalog.map(entry => entry.key);
 
-    expect(catalog.length).toBeGreaterThanOrEqual(300);
+    expect(catalog.length).toBeGreaterThanOrEqual(180);
     expect(new Set(keys).size).toBe(keys.length);
   });
 

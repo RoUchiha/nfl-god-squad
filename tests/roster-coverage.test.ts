@@ -38,7 +38,7 @@ describe('NFL Standard Mode roster coverage', () => {
   });
 
   it('does not expose generated placeholder player labels in playable rosters', async () => {
-    const placeholderPattern = /\b(Field General|Feature Back|Changeup Back|Boundary WR|Slot WR|Deep Threat|Move TE)\b/i;
+    const placeholderPattern = /\b(Field General|Feature Back|Changeup Back|Boundary WR|Slot WR|Deep Threat|Move TE|Quarterback Room|Running Back Room|Receiver Room|Tight End Room)\b/i;
 
     for (const { team, era } of getCuratedNFLEraCatalog()) {
       const players = await fetchNFLPlayers(team, era);

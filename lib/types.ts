@@ -55,6 +55,8 @@ export interface PlayerStats {
   receivingTDs?: number;
   receptions?: number;
   sacksAllowed?: number;
+  qbPassingYards?: number;
+  teamRushingYards?: number;
   lineRank?: number;
   runBlockRank?: number;
   passBlockRank?: number;
@@ -67,6 +69,9 @@ export interface PlayerStats {
   pointsAllowed?: number;
   yardsAllowed?: number;
   takeaways?: number;
+  defensiveTfl?: number;
+  defensiveStarCount?: number;
+  defensiveHofCount?: number;
   // NBA extra
   turnovers?: number;
   // MLB Batting

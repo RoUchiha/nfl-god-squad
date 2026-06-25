@@ -1,14 +1,16 @@
 import type { Era, HistoricalTeam, Player } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
 import { applyNflAwardFloors } from './nfl-awards';
+import { NFLVERSE_GENERATED_DEPTH_PLAYERS, NFLVERSE_GENERATED_UNITS } from './nflverse-generated-depth';
 
 type SkillPosition = Extract<Player['position'], 'QB' | 'RB' | 'WR' | 'TE'>;
 
-type DepthPlayer = {
+export type DepthPlayer = {
   name: string;
   position: SkillPosition;
   from: number;
   to: number;
+  bestSeasonYear?: number;
   stats: Player['stats'];
   isLegend?: boolean;
   isAllStar?: boolean;
@@ -222,15 +224,20 @@ export const NFL_FRANCHISE_DEPTH_PLAYERS: Record<string, DepthPlayer[]> = {
   ],
 };
 
-const UNIT_OVERRIDES: Record<string, { ol?: string; defense?: string }> = {
-  '3-1985': { defense: '1985 Bears Defense' },
-  '6-1990': { ol: 'Great Wall of Dallas', defense: '1992 Cowboys Defense' },
+const UNIT_OVERRIDES: Record<string, {
+  ol?: string;
+  defense?: string;
+  defensiveStarCount?: number;
+  defensiveHofCount?: number;
+}> = {
+  '3-1985': { defense: '1985 Bears Defense', defensiveStarCount: 5, defensiveHofCount: 3 },
+  '6-1990': { ol: 'Great Wall of Dallas', defense: '1992 Cowboys Defense', defensiveStarCount: 3, defensiveHofCount: 1 },
   '9-1995': { ol: 'Favre Era Packers O-Line' },
-  '12-2020': { ol: 'Creed and Thuney O-Line', defense: '2023 Chiefs Defense' },
-  '17-2000': { defense: '2003 Patriots Defense' },
-  '23-1975': { defense: 'Steel Curtain Defense' },
-  '25-1985': { defense: '1989 49ers Defense' },
-  '26-2010': { defense: 'Legion of Boom Defense' },
+  '12-2020': { ol: 'Creed and Thuney O-Line', defense: '2023 Chiefs Defense', defensiveStarCount: 3 },
+  '17-2000': { defense: '2003 Patriots Defense', defensiveStarCount: 4, defensiveHofCount: 1 },
+  '23-1975': { defense: 'Steel Curtain Defense', defensiveStarCount: 6, defensiveHofCount: 4 },
+  '25-1985': { defense: '1989 49ers Defense', defensiveStarCount: 4, defensiveHofCount: 2 },
+  '26-2010': { defense: 'Legion of Boom Defense', defensiveStarCount: 5, defensiveHofCount: 1 },
 };
 
 function seededRange(seed: number, offset: number, span: number): number {
@@ -245,51 +252,21 @@ function overlapDistance(player: DepthPlayer, era: Era): number {
 }
 
 function selectByPosition(
-  team: HistoricalTeam,
   players: DepthPlayer[],
   era: Era,
   position: SkillPosition,
   count: number,
+  excluded = new Set<DepthPlayer>(),
 ): DepthPlayer[] {
-  const eraMatches = players
-    .filter(player => player.position === position && overlapDistance(player, era) === 0)
+  return players
+    .filter(player => player.position === position && overlapDistance(player, era) === 0 && !excluded.has(player))
     .sort((a, b) =>
       (b.isLegend ? 1 : 0) - (a.isLegend ? 1 : 0) ||
       (b.isAllStar ? 1 : 0) - (a.isAllStar ? 1 : 0) ||
+      (b.bestSeasonYear ?? b.to) - (a.bestSeasonYear ?? a.to) ||
       b.to - a.to
     )
     .slice(0, count);
-
-  if (eraMatches.length >= count) return eraMatches;
-
-  return [
-    ...eraMatches,
-    ...Array.from({ length: count - eraMatches.length }, (_, index) => buildEraDepthPlayer(team, position, era, index)),
-  ];
-}
-
-function buildEraDepthPlayer(team: HistoricalTeam, position: SkillPosition, era: Era, index: number): DepthPlayer {
-  const suffix = ['I', 'II', 'III'][index] ?? String(index + 1);
-  const nameByPosition: Record<SkillPosition, string> = {
-    QB: `${team.city} ${team.name} Quarterback Room`,
-    RB: `${team.city} ${team.name} Running Back Room ${suffix}`,
-    WR: `${team.city} ${team.name} Receiver Room ${suffix}`,
-    TE: `${team.city} ${team.name} Tight End Room`,
-  };
-  const statsByPosition: Record<SkillPosition, Player['stats']> = {
-    QB: { passingYards: 2550, passingTDs: 15, passerRating: era.startYear < 1978 ? 73 : 82, interceptions: 14 },
-    RB: { rushingYards: 620 - index * 85, rushingTDs: 4, receptions: 24, receivingYards: 180 },
-    WR: { receivingYards: 560 - index * 80, receivingTDs: 4, receptions: 42 },
-    TE: { receivingYards: 390, receivingTDs: 3, receptions: 34 },
-  };
-
-  return {
-    name: nameByPosition[position],
-    position,
-    from: era.startYear,
-    to: era.endYear,
-    stats: statsByPosition[position],
-  };
 }
 
 function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, index: number): Player {
@@ -301,7 +278,7 @@ function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, i
     positionGroup: 'offense',
     eraId: era.id,
     teamId: team.id,
-    bestSeasonYear: Math.min(Math.max(source.from, era.startYear), Math.min(source.to, era.endYear)),
+    bestSeasonYear: source.bestSeasonYear ?? Math.min(Math.max(source.from, era.startYear), Math.min(source.to, era.endYear)),
     yearsWithTeam: overlapsEra
       ? `${Math.max(source.from, era.startYear)}-${Math.min(source.to, era.endYear)}`
       : `${source.from}-${source.to}`,
@@ -314,12 +291,23 @@ function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, i
   return applyNflAwardFloors(player, era);
 }
 
-function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def'): Player['stats'] {
+function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def', selected: Player[]): Player['stats'] {
+  const generated = NFLVERSE_GENERATED_UNITS[team.id]?.[String(era.startYear)];
+  if (generated) {
+    return kind === 'ol' ? generated.offensiveLine.stats : generated.defense.stats;
+  }
+
   const seed = parseInt(team.id, 10) * 43 + era.startYear * 7 + (kind === 'ol' ? 1 : 2);
   const eraBoost = Math.max(0, 2024 - era.startYear) / 70;
   if (kind === 'ol') {
+    const qbPassingYards = Math.max(0, ...selected.filter(player => player.position === 'QB').map(player => player.stats.passingYards ?? 0));
+    const teamRushingYards = selected
+      .filter(player => player.position === 'RB')
+      .reduce((sum, player) => sum + (player.stats.rushingYards ?? 0), 0);
     return {
       sacksAllowed: 18 + seededRange(seed, 1, 22),
+      qbPassingYards,
+      teamRushingYards,
       lineRank: 1 + seededRange(seed, 2, 18),
       runBlockRank: 1 + seededRange(seed, 3, 20),
       passBlockRank: 1 + seededRange(seed, 4, 20),
@@ -330,14 +318,19 @@ function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def'): Player['
     yardsAllowed: Math.round(4200 + seededRange(seed, 6, 1350) + eraBoost * 320),
     sacks: 30 + seededRange(seed, 7, 26),
     takeaways: 18 + seededRange(seed, 8, 22),
+    defensiveTfl: 54 + seededRange(seed, 9, 34),
+    defensiveStarCount: UNIT_OVERRIDES[`${team.id}-${era.startYear}`]?.defensiveStarCount ?? 0,
+    defensiveHofCount: UNIT_OVERRIDES[`${team.id}-${era.startYear}`]?.defensiveHofCount ?? 0,
   };
 }
 
-function buildUnit(team: HistoricalTeam, era: Era, kind: 'ol' | 'def'): Player {
+function buildUnit(team: HistoricalTeam, era: Era, kind: 'ol' | 'def', selected: Player[]): Player {
   const override = UNIT_OVERRIDES[`${team.id}-${era.startYear}`];
+  const generated = NFLVERSE_GENERATED_UNITS[team.id]?.[String(era.startYear)];
   const name = kind === 'ol'
-    ? override?.ol ?? `${era.startYear} ${team.city} ${team.name} O-Line`
-    : override?.defense ?? `${era.startYear} ${team.city} ${team.name} Defense`;
+    ? override?.ol ?? generated?.offensiveLine.name ?? `${era.startYear} ${team.city} ${team.name} O-Line`
+    : override?.defense ?? generated?.defense.name ?? `${era.startYear} ${team.city} ${team.name} Defense`;
+  const generatedSource = kind === 'ol' ? generated?.offensiveLine : generated?.defense;
   const player: Player = {
     id: `nfl-depth-${team.id}-${era.id}-${kind}`,
     name,
@@ -345,27 +338,54 @@ function buildUnit(team: HistoricalTeam, era: Era, kind: 'ol' | 'def'): Player {
     positionGroup: kind === 'ol' ? 'offense' : 'defense',
     eraId: era.id,
     teamId: team.id,
-    bestSeasonYear: era.startYear + seededRange(parseInt(team.id, 10) + era.startYear, kind === 'ol' ? 9 : 10, Math.max(1, era.endYear - era.startYear + 1)),
+    bestSeasonYear: generatedSource?.bestSeasonYear ?? era.startYear + seededRange(parseInt(team.id, 10) + era.startYear, kind === 'ol' ? 9 : 10, Math.max(1, era.endYear - era.startYear + 1)),
     yearsWithTeam: `${era.startYear}-${era.endYear}`,
-    stats: unitStats(team, era, kind),
+    stats: unitStats(team, era, kind, selected),
     playerScore: 0,
-    isLegend: Boolean(override?.ol && kind === 'ol') || Boolean(override?.defense && kind === 'def'),
+    isLegend: Boolean(override?.ol && kind === 'ol') || Boolean(override?.defense && kind === 'def') || Boolean(generatedSource?.isLegend),
   };
   player.playerScore = computePlayerScore(player, 'nfl');
   return player;
 }
 
 export function buildFranchiseDepthNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
-  const depth = NFL_FRANCHISE_DEPTH_PLAYERS[team.id] ?? [];
-  const selected = [
-    ...selectByPosition(team, depth, era, 'QB', 1),
-    ...selectByPosition(team, depth, era, 'RB', 2),
-    ...selectByPosition(team, depth, era, 'WR', 3),
-    ...selectByPosition(team, depth, era, 'TE', 1),
+  const depth = [
+    ...(NFL_FRANCHISE_DEPTH_PLAYERS[team.id] ?? []),
+    ...(NFLVERSE_GENERATED_DEPTH_PLAYERS[team.id] ?? []),
   ];
+  const selectedSources: DepthPlayer[] = [];
+  const excluded = new Set<DepthPlayer>();
+  const add = (items: DepthPlayer[]) => {
+    for (const item of items) {
+      selectedSources.push(item);
+      excluded.add(item);
+    }
+  };
 
-  const players = selected.map((player, index) => buildSkillPlayer(team, era, player, index));
-  players.push(buildUnit(team, era, 'ol'), buildUnit(team, era, 'def'));
+  const qbs = selectByPosition(depth, era, 'QB', 1, excluded);
+  const rbs = selectByPosition(depth, era, 'RB', 1, excluded);
+  const wrs = selectByPosition(depth, era, 'WR', 2, excluded);
+  const tes = selectByPosition(depth, era, 'TE', 1, excluded);
+  if (qbs.length < 1 || rbs.length < 1 || wrs.length < 2 || tes.length < 1) return [];
+
+  add(qbs);
+  add(rbs);
+  add(wrs);
+  add(tes);
+
+  const flex = depth
+    .filter(player => ['RB', 'WR', 'TE'].includes(player.position) && overlapDistance(player, era) === 0 && !excluded.has(player))
+    .sort((a, b) =>
+      (b.isLegend ? 1 : 0) - (a.isLegend ? 1 : 0) ||
+      (b.isAllStar ? 1 : 0) - (a.isAllStar ? 1 : 0) ||
+      (b.bestSeasonYear ?? b.to) - (a.bestSeasonYear ?? a.to) ||
+      b.to - a.to
+    )[0];
+  if (!flex) return [];
+  add([flex]);
+
+  const players = selectedSources.map((player, index) => buildSkillPlayer(team, era, player, index));
+  players.push(buildUnit(team, era, 'ol', players), buildUnit(team, era, 'def', players));
 
   return players.sort((a, b) => b.playerScore - a.playerScore || a.name.localeCompare(b.name));
 }

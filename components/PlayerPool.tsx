@@ -1,18 +1,9 @@
 'use client';
 
-/**
- * PlayerPool — two-step draft UI:
- *   1. Click a card to SELECT it (highlight only, no commit)
- *   2. Click the DRAFT button to COMMIT the pick
- *
- * This eliminates the multi-pick bug by design: player cards never directly
- * trigger a pick. Only the single DRAFT button does, and it disables itself
- * immediately on first click before the parent re-renders.
- */
-
 import { useState, useCallback, useRef } from 'react';
 import type { Player, Sport, DraftMode } from '@/lib/types';
 import PlayerCard from './PlayerCard';
+import PlayerDetailModal from './PlayerDetailModal';
 
 interface Props {
   players: Player[];
@@ -28,8 +19,6 @@ const SKELETON_COUNT = 8;
 export default function PlayerPool({ players, isLoading, sport, mode, onDraft, onSkip }: Props) {
   const [selected, setSelected] = useState<Player | null>(null);
   const [draftFired, setDraftFired] = useState(false);
-  // Ref mirrors draftFired — read at call-time so rapid clicks see the
-  // updated value even before React re-renders with the new state.
   const draftFiredRef = useRef(false);
 
   const visiblePlayers = (sport === 'nfl' && mode && mode !== 'combined')
@@ -38,14 +27,13 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
 
   const handleCardClick = useCallback((player: Player) => {
     if (draftFiredRef.current) return;
-    setSelected(prev => prev?.id === player.id ? null : player);
+    setSelected(player);
   }, []);
 
   const handleDraft = useCallback(() => {
     if (!selected || draftFiredRef.current) return;
-    // Write ref FIRST — synchronous, never stale in closures
     draftFiredRef.current = true;
-    setDraftFired(true);  // visual only
+    setDraftFired(true);
     onDraft(selected);
   }, [selected, onDraft]);
 
@@ -57,14 +45,13 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
   }, [onSkip]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+    <div className="flex h-full flex-col">
+      <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Player Pool</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400">Player Pool</h2>
           {selected && !draftFired && (
-            <p className="text-xs text-yellow-400 mt-0.5">
-              <span className="font-semibold">{selected.name}</span> selected — confirm below ↓
+            <p className="mt-0.5 text-xs text-yellow-400">
+              <span className="font-semibold">{selected.name}</span> ready to draft
             </p>
           )}
         </div>
@@ -73,19 +60,18 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
         )}
       </div>
 
-      {/* Card list */}
       {isLoading ? (
-        <div className="space-y-2 flex-1">
+        <div className="flex-1 space-y-2">
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <div key={i} className="skeleton h-20 rounded-lg" />
           ))}
         </div>
       ) : visiblePlayers.length === 0 ? (
-        <div className="glass rounded-lg p-8 text-center text-gray-600 text-sm flex-1">
+        <div className="glass flex-1 rounded-lg p-8 text-center text-sm text-gray-600">
           No players loaded
         </div>
       ) : (
-        <div className="space-y-1.5 overflow-y-auto max-h-[48vh] lg:max-h-[calc(100vh-340px)] pr-1 flex-1">
+        <div className="max-h-[52vh] flex-1 space-y-1.5 overflow-y-auto pr-1 lg:max-h-[calc(100vh-300px)]">
           {visiblePlayers.map(player => (
             <PlayerCard
               key={player.id}
@@ -99,31 +85,42 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
         </div>
       )}
 
-      {/* Draft / Skip controls — always visible at bottom */}
       {!isLoading && (
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={handleDraft}
-            disabled={!selected || draftFired}
-            className={`
-              flex-1 py-3 rounded-xl font-bold text-sm transition-all
-              ${selected && !draftFired
-                ? 'bg-white text-black hover:bg-gray-200 active:scale-[0.98] cursor-pointer'
-                : 'bg-white/5 text-gray-600 cursor-not-allowed'
-              }
-            `}
-          >
-            {draftFired ? '✓ Drafted' : selected ? `DRAFT  ${selected.name}` : 'Select a player'}
-          </button>
+        <div className="mt-3">
           <button
             onClick={handleSkip}
             disabled={draftFired}
-            className="px-4 py-3 rounded-xl text-sm text-gray-500 hover:text-gray-300 border border-white/5 hover:border-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Skip this era → next pick"
+            className="w-full rounded-xl border border-white/5 px-4 py-3 text-sm text-gray-500 transition-colors hover:border-white/10 hover:text-gray-300 disabled:cursor-not-allowed disabled:opacity-30"
+            title="Skip this era"
           >
-            Skip →
+            Skip Era
           </button>
         </div>
+      )}
+
+      {selected && !draftFired && (
+        <PlayerDetailModal
+          player={selected}
+          sport={sport}
+          title="Draft Player"
+          onClose={() => setSelected(null)}
+          actions={
+            <>
+              <button
+                onClick={handleDraft}
+                className="flex-1 rounded-xl bg-white px-4 py-3 text-sm font-black uppercase tracking-wide text-black transition-transform hover:bg-gray-200 active:scale-[0.98]"
+              >
+                Draft
+              </button>
+              <button
+                onClick={handleSkip}
+                className="rounded-xl border border-white/10 px-4 py-3 text-sm text-gray-400 hover:border-white/20 hover:text-white"
+              >
+                Skip
+              </button>
+            </>
+          }
+        />
       )}
     </div>
   );

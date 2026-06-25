@@ -18,9 +18,11 @@ const STAT_LABELS: Record<string, string> = {
   passingYards: 'Pass Yds', passingTDs: 'TD', passerRating: 'RTG', interceptions: 'INT',
   rushingYards: 'Rush Yds', rushingTDs: 'Rush TD', receptions: 'REC',
   receivingYards: 'Rec Yds', receivingTDs: 'Rec TD',
-  sacksAllowed: 'Sacks Allowed', lineRank: 'Line Rank', runBlockRank: 'Run Rank', passBlockRank: 'Pass Rank',
+  sacksAllowed: 'Sacks Allowed', qbPassingYards: 'QB Pass Yds', teamRushingYards: 'Rush Yds',
+  lineRank: 'Line Rank', runBlockRank: 'Run Rank', passBlockRank: 'Pass Rank',
   sacks: 'SCK', tackles: 'TKL', forcedFumbles: 'FF', passDeflections: 'PD',
   pointsAllowed: 'Pts Allowed', yardsAllowed: 'Yds Allowed', takeaways: 'Takeaways',
+  defensiveTfl: 'TFL', defensiveStarCount: 'Stars', defensiveHofCount: 'HOF',
   // MLB
   battingAvg: 'AVG', homeRuns: 'HR', rbi: 'RBI', ops: 'OPS', stolenBases: 'SB', onBasePct: 'OBP',
   era: 'ERA', whip: 'WHIP', strikeoutsPerNine: 'K/9', wins: 'W', saves: 'SV', inningsPitched: 'IP',
@@ -67,9 +69,9 @@ function getKeyStats(player: Player, sport: Sport): [string, number | undefined]
       if (player.position === 'WR' || player.position === 'TE')
         return [['receptions', s.receptions], ['receivingYards', s.receivingYards], ['receivingTDs', s.receivingTDs]];
       if (player.position === 'OL')
-        return [['sacksAllowed', s.sacksAllowed], ['lineRank', s.lineRank], ['runBlockRank', s.runBlockRank], ['passBlockRank', s.passBlockRank]];
+        return [['sacksAllowed', s.sacksAllowed], ['qbPassingYards', s.qbPassingYards], ['teamRushingYards', s.teamRushingYards], ['lineRank', s.lineRank]];
       if (player.position === 'DEF')
-        return [['pointsAllowed', s.pointsAllowed], ['yardsAllowed', s.yardsAllowed], ['sacks', s.sacks], ['takeaways', s.takeaways]];
+        return [['pointsAllowed', s.pointsAllowed], ['yardsAllowed', s.yardsAllowed], ['sacks', s.sacks], ['takeaways', s.takeaways], ['defensiveTfl', s.defensiveTfl], ['defensiveHofCount', s.defensiveHofCount]];
       if (player.position === 'DE' || player.position === 'DT')
         return [['sacks', s.sacks], ['tackles', s.tackles], ['forcedFumbles', s.forcedFumbles]];
       if (player.position === 'LB')
