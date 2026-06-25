@@ -181,10 +181,11 @@ export function getGsprTier(gspr: number) {
 }
 
 // ─── Team-specific era generation ────────────────────────────────────────────
-// Each team gets 5-year windows from their founding (or sport minimum) to 2024.
+// Each team gets completed 5-year windows from their founding (or sport minimum).
 // Era ID format: `${sport}-${teamId}-${startYear}`
 
 const SPORT_ERA_START: Record<Sport, number> = { nba: 1970, nfl: 1970, mlb: 1920, nhl: 1970, epl: 1992, wcup: 1970 };
+const SPORT_LAST_COMPLETED_ERA_START: Record<Sport, number> = { nba: 2020, nfl: 2020, mlb: 2020, nhl: 2020, epl: 2020, wcup: 2020 };
 
 // Founding years for teams established AFTER their sport's era start
 const TEAM_FOUNDED: Partial<Record<string, number>> = {
@@ -192,7 +193,8 @@ const TEAM_FOUNDED: Partial<Record<string, number>> = {
   'nba-4': 1988, 'nba-7': 1980, 'nba-15': 1995, 'nba-16': 1988,
   'nba-18': 1989, 'nba-19': 2002, 'nba-22': 1989, 'nba-28': 1995,
   // NFL
-  'nfl-1': 1966, 'nfl-29': 1995, 'nfl-33': 1996, 'nfl-34': 2002, 'nfl-30': 1995,
+  'nfl-1': 1966, 'nfl-18': 1967, 'nfl-26': 1976, 'nfl-27': 1976,
+  'nfl-29': 1995, 'nfl-30': 1995, 'nfl-33': 1996, 'nfl-34': 2002,
   // MLB
   'mlb-109': 1998, 'mlb-115': 1993, 'mlb-117': 1962, 'mlb-120': 1969,
   'mlb-121': 1962, 'mlb-139': 1998, 'mlb-140': 1972, 'mlb-141': 1977,
@@ -391,7 +393,8 @@ export function generateTeamEras(team: HistoricalTeam): Era[] {
   const firstEraStart = Math.max(sportMin, Math.floor(founded / 5) * 5);
   const eras: Era[] = [];
 
-  for (let start = firstEraStart; start <= 2025; start += 5) {
+  const lastEraStart = SPORT_LAST_COMPLETED_ERA_START[team.sport];
+  for (let start = firstEraStart; start <= lastEraStart; start += 5) {
     const end = start + 4;
     const id = `${team.sport}-${team.id}-${start}`;
     const custom = ERA_DATA[id];

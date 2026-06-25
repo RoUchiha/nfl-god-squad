@@ -39,7 +39,14 @@ export const NFL_TEAMS: HistoricalTeam[] = [
 
 // ─── Hardcoded historical rosters (real players, pre-API era) ─────────────────
 // Key: `${teamId}-${eraId}`
-type HistoricalPlayer = { name: string; position: Player['position']; group: Player['positionGroup']; stats: Player['stats']; isLegend?: boolean };
+type HistoricalPlayer = {
+  name: string;
+  position: Player['position'];
+  group: Player['positionGroup'];
+  stats: Player['stats'];
+  seasonStats?: Player['stats'][];
+  isLegend?: boolean;
+};
 
 const HISTORICAL_ROSTERS: Record<string, HistoricalPlayer[]> = {
   // Steel Curtain Steelers 1975-1979
@@ -283,7 +290,102 @@ const HISTORICAL_ROSTERS: Record<string, HistoricalPlayer[]> = {
   ],
 };
 
-export const NFL_CURATED_ERA_KEYS = Object.keys(HISTORICAL_ROSTERS);
+function nflEraKey(teamId: string, eraId: string): string {
+  return `${teamId}-${eraId}`;
+}
+
+function normalizePlayerName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function rosterNameSet(key: string): Set<string> {
+  return new Set(
+    (HISTORICAL_ROSTERS[key] ?? [])
+      .filter(player => player.position !== 'K')
+      .map(player => normalizePlayerName(player.name))
+  );
+}
+
+function adjacentRosterOverlap(aKey: string, bKey: string): number {
+  const a = rosterNameSet(aKey);
+  const b = rosterNameSet(bKey);
+  if (a.size === 0 || b.size === 0) return 0;
+
+  let overlap = 0;
+  for (const name of a) {
+    if (b.has(name)) overlap += 1;
+  }
+
+  return overlap / Math.min(a.size, b.size);
+}
+
+type CombinedEraGroup = {
+  rootKey: string;
+  keys: string[];
+  teamId: string;
+  startYear: number;
+  endYear: number;
+};
+
+function parsedHistoricalKey(key: string): { teamId: string; eraId: string; startYear: number } {
+  const [teamId, sport, sportTeamId, start] = key.split('-');
+  return { teamId, eraId: `${sport}-${sportTeamId}-${start}`, startYear: Number(start) };
+}
+
+function buildCombinedRosterGroups(): CombinedEraGroup[] {
+  const byTeam = new Map<string, string[]>();
+  for (const key of Object.keys(HISTORICAL_ROSTERS)) {
+    const { teamId } = parsedHistoricalKey(key);
+    byTeam.set(teamId, [...(byTeam.get(teamId) ?? []), key]);
+  }
+
+  const groups: CombinedEraGroup[] = [];
+  for (const [teamId, keys] of byTeam) {
+    const ordered = keys.sort((a, b) => parsedHistoricalKey(a).startYear - parsedHistoricalKey(b).startYear);
+    let current: string[] = [];
+
+    const flush = () => {
+      if (current.length === 0) return;
+      const startYear = parsedHistoricalKey(current[0]).startYear;
+      const endYear = parsedHistoricalKey(current[current.length - 1]).startYear + 4;
+      groups.push({ rootKey: current[0], keys: current, teamId, startYear, endYear });
+      current = [];
+    };
+
+    for (const key of ordered) {
+      if (current.length === 0) {
+        current = [key];
+        continue;
+      }
+
+      const previous = current[current.length - 1];
+      const previousStart = parsedHistoricalKey(previous).startYear;
+      const nextStart = parsedHistoricalKey(key).startYear;
+      const isAdjacent = nextStart - previousStart === 5;
+      const hasSameCore = adjacentRosterOverlap(previous, key) >= 0.5;
+
+      if (isAdjacent && hasSameCore) current.push(key);
+      else {
+        flush();
+        current = [key];
+      }
+    }
+    flush();
+  }
+
+  return groups;
+}
+
+const COMBINED_ROSTER_GROUPS = buildCombinedRosterGroups();
+const COMBINED_ROSTER_GROUP_BY_KEY = new Map<string, CombinedEraGroup>();
+for (const group of COMBINED_ROSTER_GROUPS) {
+  for (const key of group.keys) COMBINED_ROSTER_GROUP_BY_KEY.set(key, group);
+}
+const NFL_HIDDEN_COMBINED_ERA_KEYS = new Set(
+  COMBINED_ROSTER_GROUPS.flatMap(group => group.keys.slice(1))
+);
+
+export const NFL_CURATED_ERA_KEYS = Object.keys(HISTORICAL_ROSTERS).filter(key => !NFL_HIDDEN_COMBINED_ERA_KEYS.has(key));
 
 export const NFL_ELITE_SCORE = 90;
 export const NFL_SUPERSTAR_SCORE = 93;
@@ -374,65 +476,123 @@ const CURATED_UNITS: Record<string, UnitMeta> = {
   },
 };
 
-function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] | null {
-  const key = `${team.id}-${era.id}`;
-  const roster = HISTORICAL_ROSTERS[key];
-  const units = CURATED_UNITS[key];
-  if (!roster || !units) return null;
+const LOWER_IS_BETTER_STATS = new Set<keyof Player['stats']>([
+  'sacksAllowed',
+  'lineRank',
+  'runBlockRank',
+  'passBlockRank',
+  'pointsAllowed',
+  'yardsAllowed',
+]);
 
-  const players = roster
-    .filter(hp => hp.group === 'offense' && hp.position !== 'K')
-    .map((hp, i) => {
-      const p: Player = {
-        id: `nfl-hist-${team.id}-${era.id}-${i}`,
-        name: hp.name,
-        position: hp.position,
-        positionGroup: hp.group,
-        eraId: era.id,
-        teamId: team.id,
-        yearsWithTeam: `${era.startYear}-${era.endYear}`,
-        stats: hp.stats,
-        playerScore: 0,
-        isLegend: hp.isLegend,
-      };
-      p.playerScore = computePlayerScore(p, 'nfl');
-      return p;
-    });
+function bestStatsInEra(player: HistoricalPlayer): Player['stats'] {
+  const statLines = player.seasonStats && player.seasonStats.length > 0 ? player.seasonStats : [player.stats];
+  const best: Player['stats'] = {};
 
-  const ol: Player = {
-    id: `nfl-unit-${team.id}-${era.id}-ol`,
-    name: units.offensiveLine.name,
-    position: 'OL',
-    positionGroup: 'offense',
-    eraId: era.id,
-    teamId: team.id,
-    bestSeasonYear: units.offensiveLine.bestSeasonYear,
-    yearsWithTeam: `${era.startYear}-${era.endYear}`,
-    stats: units.offensiveLine.stats,
-    playerScore: 0,
-    isLegend: units.offensiveLine.isLegend,
-  };
-  ol.playerScore = computePlayerScore(ol, 'nfl');
+  for (const stats of statLines) {
+    for (const [key, value] of Object.entries(stats) as [keyof Player['stats'], number | undefined][]) {
+      if (value == null) continue;
+      const existing = best[key];
+      const lowerIsBetter = LOWER_IS_BETTER_STATS.has(key) || (player.position === 'QB' && key === 'interceptions');
+      if (existing == null || (lowerIsBetter ? value < existing : value > existing)) {
+        best[key] = value;
+      }
+    }
+  }
 
-  const defense: Player = {
-    id: `nfl-unit-${team.id}-${era.id}-def`,
-    name: units.defense.name,
-    position: 'DEF',
-    positionGroup: 'defense',
-    eraId: era.id,
-    teamId: team.id,
-    bestSeasonYear: units.defense.bestSeasonYear,
-    yearsWithTeam: `${era.startYear}-${era.endYear}`,
-    stats: units.defense.stats,
-    playerScore: 0,
-    isLegend: units.defense.isLegend,
-  };
-  defense.playerScore = computePlayerScore(defense, 'nfl');
-
-  return [...players, ol, defense].sort((a, b) => b.playerScore - a.playerScore);
+  return best;
 }
 
-export function getCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] | null {
+function buildUnitPlayer(
+  team: HistoricalTeam,
+  era: Era,
+  key: string,
+  kind: 'offensiveLine' | 'defense',
+): Player | null {
+  const units = CURATED_UNITS[key];
+  const source = units?.[kind];
+  if (!source) return null;
+
+  const player: Player = {
+    id: `nfl-unit-${team.id}-${era.id}-${kind === 'offensiveLine' ? 'ol' : 'def'}`,
+    name: source.name,
+    position: kind === 'offensiveLine' ? 'OL' : 'DEF',
+    positionGroup: kind === 'offensiveLine' ? 'offense' : 'defense',
+    eraId: era.id,
+    teamId: team.id,
+    bestSeasonYear: source.bestSeasonYear,
+    yearsWithTeam: `${era.startYear}-${era.endYear}`,
+    stats: source.stats,
+    playerScore: 0,
+    isLegend: source.isLegend,
+  };
+  player.playerScore = computePlayerScore(player, 'nfl');
+  return player;
+}
+
+function bestUnitForGroup(
+  team: HistoricalTeam,
+  era: Era,
+  keys: string[],
+  kind: 'offensiveLine' | 'defense',
+): Player | null {
+  return keys
+    .map(key => buildUnitPlayer(team, era, key, kind))
+    .filter((player): player is Player => player !== null)
+    .sort((a, b) => b.playerScore - a.playerScore)[0] ?? null;
+}
+
+function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
+  const requestedKey = nflEraKey(team.id, era.id);
+  const group = COMBINED_ROSTER_GROUP_BY_KEY.get(requestedKey);
+  if (!group) return generateFallbackNFLPlayers(team, era);
+
+  const rootEraId = parsedHistoricalKey(group.rootKey).eraId;
+  const effectiveEra: Era = {
+    ...era,
+    id: rootEraId,
+    startYear: group.startYear,
+    endYear: group.endYear,
+    name: group.endYear > group.startYear + 4 ? `${group.startYear}-${group.endYear}` : era.name,
+    description: group.endYear > group.startYear + 4
+      ? `${team.city} ${team.name} from ${group.startYear}-${group.endYear}`
+      : era.description,
+  };
+
+  const deduped = new Map<string, Player>();
+  let index = 0;
+  for (const key of group.keys) {
+    for (const historical of HISTORICAL_ROSTERS[key] ?? []) {
+      if (historical.group !== 'offense' || historical.position === 'K') continue;
+      const player: Player = {
+        id: `nfl-hist-${team.id}-${effectiveEra.id}-${index}`,
+        name: historical.name,
+        position: historical.position,
+        positionGroup: historical.group,
+        eraId: effectiveEra.id,
+        teamId: team.id,
+        yearsWithTeam: `${effectiveEra.startYear}-${effectiveEra.endYear}`,
+        stats: bestStatsInEra(historical),
+        playerScore: 0,
+        isLegend: historical.isLegend,
+      };
+      player.playerScore = computePlayerScore(player, 'nfl');
+      index += 1;
+
+      const identity = normalizePlayerName(player.name);
+      const existing = deduped.get(identity);
+      if (!existing || player.playerScore > existing.playerScore) deduped.set(identity, player);
+    }
+  }
+
+  const offensiveLine = bestUnitForGroup(team, effectiveEra, group.keys, 'offensiveLine');
+  const defense = bestUnitForGroup(team, effectiveEra, group.keys, 'defense');
+  const units = [offensiveLine, defense].filter((player): player is Player => player !== null);
+
+  return [...deduped.values(), ...units].sort((a, b) => b.playerScore - a.playerScore);
+}
+
+export function getCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   return buildCuratedNFLPlayers(team, era);
 }
 
@@ -440,32 +600,33 @@ let curatedCatalogCache: CuratedNFLEraCatalogEntry[] | null = null;
 
 export function getCuratedNFLEraCatalog(): CuratedNFLEraCatalogEntry[] {
   if (!curatedCatalogCache) {
-    curatedCatalogCache = NFL_CURATED_ERA_KEYS.map(key => {
-      const [, sport, teamId, start] = key.split('-');
-      const team = NFL_TEAMS.find(item => item.id === teamId);
-      if (!team || sport !== 'nfl') return null;
-      const generatedEra = generateTeamEras(team).find(item => item.id === `nfl-${teamId}-${start}`);
-      const era: Era = generatedEra ?? {
-        id: `nfl-${teamId}-${start}`,
-        teamId,
-        sport: 'nfl',
-        startYear: Number(start),
-        endYear: Number(start) + 4,
-        name: `${start}-${Number(start) + 4}`,
-        description: `${team.city} ${team.name} from ${start}-${Number(start) + 4}`,
-      };
+    curatedCatalogCache = NFL_TEAMS.flatMap(team => generateTeamEras(team).map(era => {
+      const requestedKey = nflEraKey(team.id, era.id);
+      if (NFL_HIDDEN_COMBINED_ERA_KEYS.has(requestedKey)) return null;
+
+      const group = COMBINED_ROSTER_GROUP_BY_KEY.get(requestedKey);
+      const catalogEra: Era = group && group.endYear > group.startYear + 4
+        ? {
+            ...era,
+            id: parsedHistoricalKey(group.rootKey).eraId,
+            startYear: group.startYear,
+            endYear: group.endYear,
+            name: `${group.startYear}-${group.endYear}`,
+            description: `${team.city} ${team.name} from ${group.startYear}-${group.endYear}`,
+          }
+        : era;
+
       const players = getCuratedNFLPlayers(team, era);
-      if (!players) return null;
       return {
-        key,
+        key: nflEraKey(team.id, catalogEra.id),
         team,
-        era,
+        era: catalogEra,
         weight: curatedEraWeight(players),
         elitePlayerCount: players.filter(player => player.playerScore >= NFL_ELITE_SCORE).length,
         superstarPlayerCount: players.filter(player => player.playerScore >= NFL_SUPERSTAR_SCORE).length,
         goatPlayerCount: players.filter(player => player.playerScore >= NFL_GOAT_SCORE).length,
       };
-    }).filter((entry): entry is CuratedNFLEraCatalogEntry => entry !== null);
+    })).filter((entry): entry is CuratedNFLEraCatalogEntry => entry !== null);
   }
   return curatedCatalogCache;
 }
@@ -541,10 +702,10 @@ async function fetchESPNRoster(teamId: string, year: number): Promise<Player[]> 
 }
 
 export async function fetchNFLPlayers(team: HistoricalTeam, era: Era): Promise<Player[]> {
-  // Check hardcoded historical roster first
-  const key = `${team.id}-${era.id}`;
-  const curated = getCuratedNFLPlayers(team, era);
-  if (curated) return curated;
+  // The playable catalog is backed by synchronous canonical rosters so queue,
+  // browser, and simulation validation all agree on the same player identities.
+  const canonical = getCuratedNFLPlayers(team, era);
+  if (canonical.length >= 8) return canonical;
 
   // ESPN API: sample up to 4 evenly-spaced years across the era
   const years = eraYears(era.startYear, era.endYear, 4);
@@ -583,7 +744,53 @@ function nflFakeName(seed: number): string {
   return `${NFL_FIRST[seed % NFL_FIRST.length]} ${NFL_LAST[(seed * 7 + 5) % NFL_LAST.length]}`;
 }
 
+function seededRange(seed: number, offset: number, span: number): number {
+  const raw = Math.sin(seed * 12.9898 + offset * 78.233) * 43758.5453;
+  return Math.floor((raw - Math.floor(raw)) * span);
+}
+
 function generateFallbackNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
+  const templates: Array<{ pos: Player['position']; group: Player['positionGroup']; idx: number; label: string }> = [
+    { pos: 'QB', group: 'offense', idx: 0, label: 'Field General' },
+    { pos: 'RB', group: 'offense', idx: 1, label: 'Feature Back' },
+    { pos: 'RB', group: 'offense', idx: 2, label: 'Changeup Back' },
+    { pos: 'WR', group: 'offense', idx: 3, label: 'Boundary WR' },
+    { pos: 'WR', group: 'offense', idx: 4, label: 'Slot WR' },
+    { pos: 'WR', group: 'offense', idx: 5, label: 'Deep Threat' },
+    { pos: 'TE', group: 'offense', idx: 6, label: 'Move TE' },
+    { pos: 'OL', group: 'offense', idx: 7, label: 'O-Line' },
+    { pos: 'DEF', group: 'defense', idx: 8, label: 'Defense' },
+  ];
+  const teamSeed = parseInt(team.id, 10) * 37 + era.startYear * 13;
+
+  return templates.map(({ pos, group, idx, label }) => {
+    const s = teamSeed + idx * 17;
+    let stats: Player['stats'] = {};
+    if (pos === 'QB') stats = { passingYards: 2800 + seededRange(s, 1, 1200), passingTDs: 18 + seededRange(s, 2, 13), passerRating: 78 + seededRange(s, 3, 18), interceptions: 8 + seededRange(s, 4, 9) };
+    else if (pos === 'RB') stats = { rushingYards: 650 + seededRange(s, 5, 550), rushingTDs: 5 + seededRange(s, 6, 8), receptions: 20 + seededRange(s, 7, 28), receivingYards: 150 + seededRange(s, 8, 350) };
+    else if (pos === 'WR') stats = { receivingYards: 650 + seededRange(s, 9, 500), receivingTDs: 4 + seededRange(s, 10, 7), receptions: 45 + seededRange(s, 11, 35) };
+    else if (pos === 'TE') stats = { receivingYards: 420 + seededRange(s, 12, 380), receivingTDs: 3 + seededRange(s, 13, 6), receptions: 35 + seededRange(s, 14, 30) };
+    else if (pos === 'OL') stats = { sacksAllowed: 24 + seededRange(s, 15, 18), lineRank: 8 + seededRange(s, 16, 15), runBlockRank: 8 + seededRange(s, 17, 15), passBlockRank: 8 + seededRange(s, 18, 15) };
+    else if (pos === 'DEF') stats = { pointsAllowed: 280 + seededRange(s, 19, 90), yardsAllowed: 4600 + seededRange(s, 20, 1100), sacks: 30 + seededRange(s, 21, 18), takeaways: 18 + seededRange(s, 22, 16) };
+
+    const p: Player = {
+      id: `nfl-generated-${team.id}-${era.startYear}-${idx}`,
+      name: `${era.startYear} ${team.abbreviation} ${label}`,
+      position: pos,
+      positionGroup: group,
+      eraId: era.id,
+      teamId: team.id,
+      bestSeasonYear: era.startYear + seededRange(s, 23, Math.max(1, era.endYear - era.startYear + 1)),
+      yearsWithTeam: `${era.startYear}-${era.endYear}`,
+      stats,
+      playerScore: 0,
+    };
+    p.playerScore = computePlayerScore(p, 'nfl');
+    return p;
+  }).sort((a, b) => b.playerScore - a.playerScore);
+}
+
+function generateLegacyFallbackNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   const templates: Array<{ pos: Player['position']; group: Player['positionGroup']; idx: number }> = [
     { pos: 'QB', group: 'offense', idx: 0 },
     { pos: 'RB', group: 'offense', idx: 1 }, { pos: 'RB', group: 'offense', idx: 2 },

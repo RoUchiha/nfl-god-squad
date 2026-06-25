@@ -36,8 +36,19 @@ describe('curated NFL era catalog', () => {
     const catalog = getCuratedNFLEraCatalog();
     const keys = catalog.map(entry => entry.key);
 
-    expect(catalog.length).toBeGreaterThanOrEqual(10);
+    expect(catalog.length).toBeGreaterThanOrEqual(300);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('gives every franchise at least three completed team-era windows', () => {
+    const catalog = getCuratedNFLEraCatalog();
+
+    for (const team of NFL_TEAMS) {
+      const teamEras = catalog.filter(entry => entry.team.id === team.id);
+      expect(teamEras.length).toBeGreaterThanOrEqual(3);
+      expect(Math.max(...teamEras.map(entry => entry.era.startYear))).toBeLessThanOrEqual(2020);
+      expect(Math.max(...teamEras.map(entry => entry.era.endYear))).toBeLessThanOrEqual(2024);
+    }
   });
 
   it('only includes eras with named teams and positive randomization weights', () => {
