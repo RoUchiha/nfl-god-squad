@@ -253,6 +253,8 @@ export interface PlayerSeasonStatLine {
   name: string;
   position: Position;
   slotLabel: string;
+  teamId?: string;
+  eraId?: string;
   playerScore: number;
   gamesPlayed: number;
   passingYards?: number;
@@ -266,6 +268,8 @@ export interface PlayerSeasonStatLine {
   pointsAllowed?: number;
   sacks?: number;
   takeaways?: number;
+  fieldGoalPct?: number;
+  fieldGoalsMade?: number;
 }
 
 export interface SeasonResults {

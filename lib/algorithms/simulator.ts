@@ -93,6 +93,8 @@ function simulateRosterStats(slots: FilledRosterSlot[], teamPower: TeamPower, ra
       name: player.name,
       position: player.position,
       slotLabel: slot.label,
+      teamId: player.teamId,
+      eraId: player.eraId,
       playerScore: player.playerScore,
       gamesPlayed: Math.max(12, Math.min(17, Math.round(15 + rand() * 2.2))),
     };
