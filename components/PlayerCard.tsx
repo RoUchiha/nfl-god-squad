@@ -26,6 +26,7 @@ const STAT_LABELS: Record<string, string> = {
   sacks: 'SCK', tackles: 'TKL', forcedFumbles: 'FF', passDeflections: 'PD',
   pointsAllowed: 'Pts Allowed', yardsAllowed: 'Yds Allowed', takeaways: 'Takeaways',
   defensiveTfl: 'TFL', defensiveStarCount: 'Stars', defensiveHofCount: 'HOF',
+  fieldGoalsMade: 'FG',
   // MLB
   battingAvg: 'AVG', homeRuns: 'HR', rbi: 'RBI', ops: 'OPS', stolenBases: 'SB', onBasePct: 'OBP',
   era: 'ERA', whip: 'WHIP', strikeoutsPerNine: 'K/9', wins: 'W', saves: 'SV', inningsPitched: 'IP',
@@ -73,6 +74,8 @@ function getKeyStats(player: Player, sport: Sport): [string, number | undefined]
         return [['receptions', s.receptions], ['receivingYards', s.receivingYards], ['receivingTDs', s.receivingTDs]];
       if (player.position === 'OL')
         return [['sacksAllowed', s.sacksAllowed], ['qbDropbacks', s.qbDropbacks], ['pressureRate', s.pressureRate], ['lineRank', s.lineRank], ['passBlockRank', s.passBlockRank]];
+      if (player.position === 'K')
+        return [['fieldGoalPct', s.fieldGoalPct], ['fieldGoalsMade', s.fieldGoalsMade]];
       if (player.position === 'DEF')
         return [['pointsAllowed', s.pointsAllowed], ['yardsAllowed', s.yardsAllowed], ['sacks', s.sacks], ['takeaways', s.takeaways], ['defensiveTfl', s.defensiveTfl], ['defensiveHofCount', s.defensiveHofCount]];
       if (player.position === 'DE' || player.position === 'DT')

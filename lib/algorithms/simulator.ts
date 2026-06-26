@@ -118,6 +118,7 @@ function simulateRosterStats(slots: FilledRosterSlot[], teamPower: TeamPower, ra
       };
     }
     if (player.position === 'OL') return { ...base, sacksAllowed: player.stats.sacksAllowed };
+    if (player.position === 'K') return { ...base, fieldGoalPct: player.stats.fieldGoalPct, fieldGoalsMade: player.stats.fieldGoalsMade };
     if (player.position === 'DEF') {
       return {
         ...base,

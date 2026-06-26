@@ -71,3 +71,25 @@ export function scaleOlineScore(stats: PlayerStats, start: number | null): numbe
   const raw = rawOlineStrength(stats);
   return UNIT_BASELINE + (raw - olineEraMean(start)) * OL_SENSITIVITY;
 }
+
+// ─── Kicker scaling ───────────────────────────────────────────────────────────
+// Kickers are scored the same era-relative way: the average kicker of an era
+// lands on an 80 baseline and scales by how far its FG% beats that era's league
+// average. Field-goal accuracy climbed steeply across NFL history (~60% in the
+// 1970s to ~87% today), so the baseline is era-specific.
+const KICKER_BASELINE = 80;
+const KICKER_SENSITIVITY = 130;
+const KICKER_ERA_FG: Record<number, number> = {
+  1970: 0.595, 1975: 0.62, 1980: 0.655, 1985: 0.70, 1990: 0.735,
+  1995: 0.78, 2000: 0.805, 2005: 0.82, 2010: 0.835, 2015: 0.85, 2020: 0.865,
+};
+const KICKER_GLOBAL_FG = 0.80;
+
+export function kickerEraBaselineFg(start: number | null): number {
+  return (start != null ? KICKER_ERA_FG[start] : undefined) ?? KICKER_GLOBAL_FG;
+}
+
+export function scaleKickerScore(stats: PlayerStats, start: number | null): number {
+  const fg = stats.fieldGoalPct ?? kickerEraBaselineFg(start);
+  return KICKER_BASELINE + (fg - kickerEraBaselineFg(start)) * KICKER_SENSITIVITY;
+}

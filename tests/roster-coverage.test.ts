@@ -14,10 +14,11 @@ describe('NFL Standard Mode roster coverage', () => {
   it('uses the requested QB, RB, WR, WR, TE, FLEX, O-Line, Defense slot set', () => {
     const slots = getRosterTemplates('nfl', 'combined');
 
-    expect(slots.map(slot => slot.id)).toEqual(['qb', 'rb', 'wr1', 'wr2', 'te', 'flex', 'ol', 'def']);
+    expect(slots.map(slot => slot.id)).toEqual(['qb', 'rb', 'wr1', 'wr2', 'te', 'flex', 'ol', 'k', 'def']);
     expect(slots.filter(slot => slot.position === 'WR')).toHaveLength(2);
     expect(slots.find(slot => slot.id === 'flex')?.position).toEqual(['RB', 'WR', 'TE']);
     expect(slots.find(slot => slot.id === 'ol')?.position).toBe('OL');
+    expect(slots.find(slot => slot.id === 'k')?.position).toBe('K');
     expect(slots.find(slot => slot.id === 'def')?.position).toBe('DEF');
   });
 
@@ -26,14 +27,15 @@ describe('NFL Standard Mode roster coverage', () => {
       const players = await fetchNFLPlayers(team, era);
       const positions = new Set(players.map(player => player.position));
 
-      expect(players.length).toBeGreaterThanOrEqual(8);
+      expect(players.length).toBeGreaterThanOrEqual(9);
       expect(positions.has('QB')).toBe(true);
       expect(positions.has('RB')).toBe(true);
       expect(players.filter(player => player.position === 'WR').length).toBeGreaterThanOrEqual(2);
       expect(positions.has('TE')).toBe(true);
       expect(positions.has('OL')).toBe(true);
       expect(positions.has('DEF')).toBe(true);
-      expect(players.some(player => ['DE', 'DT', 'LB', 'CB', 'S', 'K'].includes(player.position))).toBe(false);
+      expect(positions.has('K')).toBe(true);
+      expect(players.some(player => ['DE', 'DT', 'LB', 'CB', 'S'].includes(player.position))).toBe(false);
     }
   });
 

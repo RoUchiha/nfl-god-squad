@@ -1,7 +1,7 @@
 import type { Player, HistoricalTeam, Era } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
 import { generateTeamEras } from '../constants';
-import { buildFranchiseDepthNFLPlayers, enrichOffensiveLineStats } from './nfl-franchise-depth';
+import { buildEraKicker, buildFranchiseDepthNFLPlayers, enrichOffensiveLineStats } from './nfl-franchise-depth';
 import { applyNflAwardFloors } from './nfl-awards';
 import { NFL_TEAMS } from './nfl-teams';
 
@@ -410,7 +410,8 @@ function hasStandardNFLCoverage(players: Player[]): boolean {
     flexCandidates >= 5 &&
     players.some(player => player.position === 'OL') &&
     players.some(player => player.position === 'DEF') &&
-    players.every(player => STANDARD_SKILL_POSITIONS.has(player.position) || player.position === 'OL' || player.position === 'DEF')
+    players.some(player => player.position === 'K') &&
+    players.every(player => STANDARD_SKILL_POSITIONS.has(player.position) || player.position === 'OL' || player.position === 'DEF' || player.position === 'K')
   );
 }
 
@@ -613,7 +614,8 @@ function buildCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   const offense = selectStandardOffense([...deduped.values()]);
   if (offense.length < 6 || units.length < 2) return buildFranchiseDepthNFLPlayers(team, era);
 
-  return [...offense, ...units].sort((a, b) => b.playerScore - a.playerScore);
+  const kicker = buildEraKicker(team, effectiveEra);
+  return [...offense, ...units, kicker].sort((a, b) => b.playerScore - a.playerScore);
 }
 
 export function getCuratedNFLPlayers(team: HistoricalTeam, era: Era): Player[] {

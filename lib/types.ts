@@ -64,6 +64,7 @@ export interface PlayerStats {
   lineRank?: number;
   runBlockRank?: number;
   passBlockRank?: number;
+  fieldGoalsMade?: number;
   // NFL Defense
   sacks?: number;
   interceptions?: number;

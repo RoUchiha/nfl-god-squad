@@ -1,6 +1,6 @@
 import type { Player, Sport, FilledRosterSlot, TeamPower, DraftMode } from '../types';
 import { clamp } from '../utils';
-import { scaleDefenseScore, scaleOlineScore, eraStartFromId } from '../nflUnitScale';
+import { scaleDefenseScore, scaleOlineScore, scaleKickerScore, eraStartFromId } from '../nflUnitScale';
 
 // ─── Shared helper ────────────────────────────────────────────────────────────
 
@@ -348,6 +348,10 @@ export function computePlayerScore(player: Player, sport: Sport): number {
           // Era-relative: average O-line of its era ≈ 82, scaling up/down by how
           // far it beats the mean O-line of that era window.
           base = scaleOlineScore(player.stats, eraStartFromId(player.eraId));
+        } else if (player.position === 'K') {
+          // Era-relative: average kicker of its era ≈ 80, scaling by FG% vs the
+          // era's league-average accuracy.
+          base = scaleKickerScore(player.stats, eraStartFromId(player.eraId));
         } else {
           const avg  = nflOffAvg[player.position]  ?? 40;
           const goat = nflOffGoat[player.position] ?? 80;
@@ -390,6 +394,11 @@ export function computePlayerScore(player: Player, sport: Sport): number {
   // isAllStar = Multi All-Star level: floor 75, max 95
   // Regular:  natural stats-based score, max 82 (non-accolade players)
   if (sport === 'nfl') {
+    if (player.position === 'K') {
+      // Already on an absolute 60–92 kicker scale; skip the skill-player remap.
+      const floored = player.isLegend ? Math.max(base, 84) : base;
+      return Math.round(clamp(floored, 60, 92) * 10) / 10;
+    }
     if (player.position !== 'OL' && player.position !== 'DEF') {
       base = 70 + (base - 25) * (29 / 74);
     }
@@ -657,6 +666,10 @@ function nflStatComboBonus(players: Player[]): BonusResult {
   }
   if (topQbRating >= 98 && def && (def.stats.pointsAllowed ?? 999) <= 300) {
     bonus += 6; labels.push(`⚖️ Complementary Football — Elite QB + top defense (+6)`);
+  }
+  const kicker = players.find(p => p.position === 'K');
+  if (kicker && kicker.playerScore >= 88) {
+    bonus += 3; labels.push(`🦵 Automatic — ${kicker.name} is money from anywhere (+3)`);
   }
   return { total: bonus, labels };
 }

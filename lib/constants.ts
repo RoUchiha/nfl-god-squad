@@ -94,6 +94,7 @@ export const NFL_OFFENSE_ROSTER: RosterSlotTemplate[] = [
   { id: 'te',   position: 'TE',               label: 'Tight End',       group: 'offense', required: true },
   { id: 'flex', position: ['RB', 'WR', 'TE'], label: 'Flex',            group: 'offense', required: true },
   { id: 'ol',   position: 'OL',               label: 'O-Line',          group: 'offense', required: true },
+  { id: 'k',    position: 'K',                label: 'Kicker',          group: 'offense', required: true },
   { id: 'def',  position: 'DEF',              label: 'Defense',         group: 'defense', required: true },
 ];
 
