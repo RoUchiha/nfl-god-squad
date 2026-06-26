@@ -387,6 +387,14 @@ const ERA_DATA: Record<string, { name: string; description: string }> = {
   'nhl-STL-2018': { name: 'Gloria!', description: "Last in the league in January, St. Louis rallies behind 'Gloria' to win the franchise's first Cup" },
 };
 
+// Resolves the human-readable era nickname (e.g. "85 Bears", "Mahomes Dynasty
+// Peak") for an eraId like `nfl-3-1984`. Returns null for generated/unnamed eras
+// so callers can fall back to the year range. Lightweight — no data imports.
+export function getEraName(eraId: string | undefined): string | null {
+  if (!eraId) return null;
+  return ERA_DATA[eraId]?.name ?? null;
+}
+
 export function generateTeamEras(team: HistoricalTeam): Era[] {
   const sportMin = SPORT_ERA_START[team.sport];
   const founded = TEAM_FOUNDED[`${team.sport}-${team.id}`] ?? sportMin;

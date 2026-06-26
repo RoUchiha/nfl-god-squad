@@ -1,6 +1,8 @@
 'use client';
 
 import type { Player, Sport } from '@/lib/types';
+import { getNflTeamById } from '@/lib/sports/nfl-teams';
+import { getEraName } from '@/lib/constants';
 
 interface Props {
   player: Player;
@@ -110,6 +112,8 @@ function scoreColor(score: number): string {
 
 export default function PlayerCard({ player, sport, isSelected, isHighlighted, onSelect }: Props) {
   const keyStats = getKeyStats(player, sport);
+  const nflTeam = sport === 'nfl' ? getNflTeamById(player.teamId) : null;
+  const eraName = sport === 'nfl' ? getEraName(player.eraId) : null;
 
   return (
     <button
@@ -142,10 +146,16 @@ export default function PlayerCard({ player, sport, isSelected, isHighlighted, o
             )}
           </div>
           <div className="font-semibold text-sm text-white mt-1 truncate">{player.name}</div>
+          {nflTeam && (
+            <div className="text-[10px] mt-0.5 truncate">
+              <span className="font-medium text-gray-300">{nflTeam.city} {nflTeam.name}</span>
+              {eraName && <span className="text-gray-500"> · {eraName}</span>}
+            </div>
+          )}
           <div className="text-[10px] text-gray-600 mt-0.5">
-            {player.yearsWithTeam}
+            {player.yearsWithTeam} era
             {player.bestSeasonYear && (
-              <span className="ml-1.5 text-blue-500/70">{player.bestSeasonYear}</span>
+              <span className="ml-1.5 text-blue-500/70">peak {player.bestSeasonYear}</span>
             )}
           </div>
         </div>
