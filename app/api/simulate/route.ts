@@ -38,6 +38,9 @@ const PlayerStatsSchema = z.object({
   pointsAllowed: CountStat.optional(),
   yardsAllowed: CountStat.optional(),
   takeaways: CountStat.optional(),
+  defensiveTfl: CountStat.optional(),
+  defensiveStarCount: CountStat.optional(),
+  defensiveHofCount: CountStat.optional(),
   fieldGoalPct: RateStat.optional(),
 }).strict();
 

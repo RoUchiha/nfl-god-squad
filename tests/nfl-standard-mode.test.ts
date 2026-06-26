@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { NextRequest } from 'next/server';
 import { buildEraQueue } from '../lib/eraQueue';
 import { getRosterTemplates } from '../lib/constants';
 import type { FilledRosterSlot, Player, RosterSlotTemplate } from '../lib/types';
+import { POST as simulatePost } from '../app/api/simulate/route';
 import {
   curatedEraWeight,
   fetchNFLPlayers,
@@ -117,5 +119,25 @@ describe('NFL Standard Mode', () => {
     });
 
     expect(validateSimulationRoster(duplicated)).toBe('Duplicate players are not allowed.');
+  });
+
+  it('simulate endpoint accepts canonical rosters with enriched unit stats', async () => {
+    const roster = await buildCompleteRoster();
+    const defense = roster.find(slot => slot.player?.position === 'DEF')?.player;
+    expect(defense?.stats.defensiveTfl).not.toBeUndefined();
+
+    const req = new NextRequest('http://localhost/api/simulate', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'sec-fetch-site': 'same-origin',
+      },
+      body: JSON.stringify({ sport: 'nfl', mode: 'combined', slots: roster }),
+    });
+
+    const res = await simulatePost(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.totalGames).toBe(17);
   });
 });

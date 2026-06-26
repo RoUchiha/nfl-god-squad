@@ -411,13 +411,16 @@ export default function GameContainer() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sport, mode, slots }),
       });
-      if (!res.ok) throw new Error('Simulation failed');
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || 'Simulation failed');
+      }
       const data: SeasonResults = await res.json();
       setResults(data);
       setShowResults(true);
       setSimulationCount(count => Math.min(MAX_SIMULATIONS, count + 1));
-    } catch {
-      setError('Simulation failed. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Simulation failed. Please try again.');
       if (!wasLocked) setGameplayLocked(false);
     } finally {
       setIsSimulating(false);
