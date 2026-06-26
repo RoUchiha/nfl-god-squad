@@ -288,17 +288,27 @@ function buildUnits() {
       const passingYards = num(row.passing_yards);
       const rushingYards = num(row.rushing_yards);
       const sacksAllowed = num(row.sacks_suffered);
-      const olScore = passingYards * 0.012 + rushingYards * 0.018 - sacksAllowed * 1.6;
+      const qbDropbacks = Math.max(1, num(row.attempts) + sacksAllowed);
+      const sackRate = sacksAllowed / qbDropbacks;
+      const pressureRate = Math.min(0.42, Math.max(0.14, sackRate * 3.7 + 0.07));
+      const pressuresAllowed = Math.round(qbDropbacks * pressureRate);
+      const passProtection = 100 - sackRate * 900 - pressureRate * 180 - sacksAllowed * 0.7 + passingYards * 0.006;
+      const runScore = rushingYards * 0.08;
+      const olScore = passProtection * 0.78 + runScore * 0.14 + passingYards * 0.002;
       if (olScore > entry.bestOlScore) {
         entry.bestOlScore = olScore;
         entry.bestOlSeason = season;
         entry.offensiveLine = {
           sacksAllowed,
+          qbDropbacks,
+          pressuresAllowed,
+          sackRate,
+          pressureRate,
           qbPassingYards: passingYards,
           teamRushingYards: rushingYards,
           lineRank: Math.max(1, Math.round(18 - Math.min(15, olScore / 14))),
-          runBlockRank: Math.max(1, Math.round(20 - Math.min(17, rushingYards / 180))),
-          passBlockRank: Math.max(1, Math.round(20 - Math.min(17, (passingYards / 330) - (sacksAllowed / 7)))),
+          runBlockRank: Math.max(1, Math.round(20 - Math.min(17, rushingYards / 190))),
+          passBlockRank: Math.max(1, Math.round(20 - Math.min(17, passProtection / 6))),
         };
       }
 

@@ -242,14 +242,36 @@ const UNIT_OVERRIDES: Record<string, {
 
 type OLineRankSet = { lineRank: number; runBlockRank: number; passBlockRank: number };
 
-function offensiveLineScore(stats: Player['stats']): { overall: number; run: number; pass: number } {
-  const sacksAllowed = Math.max(8, stats.sacksAllowed ?? 36);
-  const passingYards = stats.qbPassingYards ?? 3600;
-  const rushingYards = stats.teamRushingYards ?? 1700;
-  const pass = (passingYards / sacksAllowed) * 7.5 - sacksAllowed * 2.6;
-  const run = rushingYards * 0.42;
+export function enrichOffensiveLineStats(stats: Player['stats']): Player['stats'] {
+  const sacksAllowed = Math.max(0, stats.sacksAllowed ?? 36);
+  const passingYards = stats.qbPassingYards ?? stats.passingYards ?? 3600;
+  const estimatedDropbacks = Math.round(Math.max(300, passingYards / 6.9 + sacksAllowed));
+  const qbDropbacks = Math.max(1, stats.qbDropbacks ?? estimatedDropbacks);
+  const sackRate = stats.sackRate ?? sacksAllowed / qbDropbacks;
+  const pressureRate = stats.pressureRate ?? Math.min(0.42, Math.max(0.14, sackRate * 3.7 + 0.07));
+  const pressuresAllowed = stats.pressuresAllowed ?? Math.round(qbDropbacks * pressureRate);
+
   return {
-    overall: pass * 0.58 + run * 0.42,
+    ...stats,
+    sacksAllowed,
+    qbDropbacks,
+    pressuresAllowed,
+    sackRate,
+    pressureRate,
+  };
+}
+
+function offensiveLineScore(stats: Player['stats']): { overall: number; run: number; pass: number } {
+  const enriched = enrichOffensiveLineStats(stats);
+  const sacksAllowed = enriched.sacksAllowed ?? 36;
+  const sackRate = enriched.sackRate ?? 0.07;
+  const pressureRate = enriched.pressureRate ?? 0.28;
+  const passingYards = enriched.qbPassingYards ?? 3600;
+  const rushingYards = enriched.teamRushingYards ?? 1700;
+  const pass = 100 - sackRate * 900 - pressureRate * 180 - sacksAllowed * 0.7 + passingYards * 0.006;
+  const run = rushingYards * 0.08;
+  return {
+    overall: pass * 0.78 + run * 0.14 + passingYards * 0.002,
     run,
     pass,
   };
@@ -367,7 +389,7 @@ function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def', selected:
   if (generated) {
     if (kind === 'ol') {
       return {
-        ...generated.offensiveLine.stats,
+        ...enrichOffensiveLineStats(generated.offensiveLine.stats),
         ...(GENERATED_OL_RANKS[`${team.id}-${era.startYear}`] ?? {}),
       };
     }
@@ -381,14 +403,14 @@ function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def', selected:
     const teamRushingYards = selected
       .filter(player => player.position === 'RB')
       .reduce((sum, player) => sum + (player.stats.rushingYards ?? 0), 0);
-    return {
+    return enrichOffensiveLineStats({
       sacksAllowed: 18 + seededRange(seed, 1, 22),
       qbPassingYards,
       teamRushingYards,
       lineRank: 1 + seededRange(seed, 2, 18),
       runBlockRank: 1 + seededRange(seed, 3, 20),
       passBlockRank: 1 + seededRange(seed, 4, 20),
-    };
+    });
   }
   return {
     pointsAllowed: Math.round(230 + seededRange(seed, 5, 125) + eraBoost * 35),

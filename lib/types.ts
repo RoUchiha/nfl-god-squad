@@ -55,6 +55,10 @@ export interface PlayerStats {
   receivingTDs?: number;
   receptions?: number;
   sacksAllowed?: number;
+  qbDropbacks?: number;
+  pressuresAllowed?: number;
+  sackRate?: number;
+  pressureRate?: number;
   qbPassingYards?: number;
   teamRushingYards?: number;
   lineRank?: number;

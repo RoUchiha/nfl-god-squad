@@ -104,14 +104,29 @@ function scoreNFLOffensePlayer(p: Player): number {
     const sacksAllowed = s.sacksAllowed ?? 35;
     const qbPassingYards = s.qbPassingYards ?? s.passingYards ?? 3600;
     const teamRushingYards = s.teamRushingYards ?? s.rushingYards ?? 1650;
-    const rankBase = 96 - (lineRank - 1) * 1.55;
-    const sackAdjustment = Math.max(-3, Math.min(3, (31 - sacksAllowed) / 5));
-    const passProduction = Math.max(-2, Math.min(2.5, (qbPassingYards - 3800) / 650));
-    const runProduction = Math.max(-2, Math.min(2.5, (teamRushingYards - 1850) / 450));
+    const qbDropbacks = Math.max(1, s.qbDropbacks ?? Math.round(Math.max(300, qbPassingYards / 6.9 + sacksAllowed)));
+    const sackRate = s.sackRate ?? sacksAllowed / qbDropbacks;
+    const pressureRate = s.pressureRate ?? (
+      s.pressuresAllowed != null
+        ? s.pressuresAllowed / qbDropbacks
+        : Math.min(0.42, Math.max(0.14, sackRate * 3.7 + 0.07))
+    );
+    const rankBase = 96 - (lineRank - 1) * 1.65;
+    const sackRateAdjustment = clamp((0.065 - sackRate) * 115, -6, 7);
+    const pressureAdjustment = clamp((0.255 - pressureRate) * 40, -5, 5);
+    const sackVolumeAdjustment = clamp((30 - sacksAllowed) / 4.5, -4, 4);
+    const passProduction = clamp((qbPassingYards - 4000) / 1400, -1, 1.2);
+    const runProduction = clamp((teamRushingYards - 1900) / 900, -1, 1.2);
     const specialtyAdjustment =
-      Math.max(-1.5, Math.min(1.5, (8 - passRank) * 0.18)) +
-      Math.max(-1.5, Math.min(1.5, (8 - runRank) * 0.18));
-    const uncapped = rankBase + sackAdjustment + passProduction + runProduction + specialtyAdjustment;
+      clamp((8 - passRank) * 0.22, -1.8, 1.8) +
+      clamp((8 - runRank) * 0.16, -1.4, 1.4);
+    const uncapped = rankBase
+      + sackRateAdjustment
+      + pressureAdjustment
+      + sackVolumeAdjustment
+      + passProduction
+      + runProduction
+      + specialtyAdjustment;
     const rankCapped = lineRank <= 5
       ? Math.max(90, uncapped)
       : Math.min(89, uncapped);

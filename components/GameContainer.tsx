@@ -146,11 +146,14 @@ export default function GameContainer() {
 
     const next = queue[0];
     if (!next) {
-      // Queue exhausted — cycle a fresh queue for the same sport
-      const fresh = buildEraQueue();
-      eraQueueRef.current = fresh;
-      setEraQueue(fresh);
-      advancePick(fresh);
+      eraQueueRef.current = [];
+      setEraQueue([]);
+      setEra(null);
+      setTeam(null);
+      setIsLoadingEra(false);
+      setIsLoadingPlayers(false);
+      setPickPhase('complete');
+      setError('No team-eras remain for this game. Start a New Game to reset the catalog.');
       return;
     }
 
@@ -358,7 +361,11 @@ export default function GameContainer() {
     if (!isRosterFull || gameplayLocked || gambleUsed || gamblePending) return;
     setGamblePending(true);
     try {
-      let queue = eraQueueRef.current.length > 0 ? eraQueueRef.current : buildEraQueue();
+      let queue = eraQueueRef.current;
+      if (queue.length === 0) {
+        setError('No unseen team-eras remain for this game. Start a New Game to reset the catalog.');
+        return;
+      }
       for (let attempt = 0; attempt < 24 && queue.length > 0; attempt++) {
         const picked = pickGambleEra(queue);
         if (!picked) break;

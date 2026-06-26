@@ -126,4 +126,39 @@ describe('NFL player scoring', () => {
     expect(computePlayerScore(topFiveLine, 'nfl')).toBeGreaterThanOrEqual(90);
     expect(computePlayerScore(volumeDrivenMidLine, 'nfl')).toBeLessThan(90);
   });
+
+  it('weights O-line pass protection over offensive yardage volume', () => {
+    const cleanPocket = makeNFLPlayer({
+      id: 'clean-pocket-line',
+      name: 'Clean Pocket O-Line',
+      position: 'OL',
+      stats: {
+        sacksAllowed: 18,
+        qbDropbacks: 620,
+        pressureRate: 0.18,
+        qbPassingYards: 3900,
+        teamRushingYards: 1750,
+        lineRank: 4,
+        runBlockRank: 8,
+        passBlockRank: 3,
+      },
+    });
+    const volumeButLeaky = makeNFLPlayer({
+      id: 'leaky-volume-line',
+      name: 'Leaky Volume O-Line',
+      position: 'OL',
+      stats: {
+        sacksAllowed: 44,
+        qbDropbacks: 620,
+        pressureRate: 0.34,
+        qbPassingYards: 5200,
+        teamRushingYards: 2400,
+        lineRank: 4,
+        runBlockRank: 3,
+        passBlockRank: 11,
+      },
+    });
+
+    expect(computePlayerScore(cleanPocket, 'nfl')).toBeGreaterThan(computePlayerScore(volumeButLeaky, 'nfl'));
+  });
 });

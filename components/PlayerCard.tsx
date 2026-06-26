@@ -18,7 +18,8 @@ const STAT_LABELS: Record<string, string> = {
   passingYards: 'Pass Yds', passingTDs: 'TD', passerRating: 'RTG', interceptions: 'INT',
   rushingYards: 'Rush Yds', rushingTDs: 'Rush TD', receptions: 'REC',
   receivingYards: 'Rec Yds', receivingTDs: 'Rec TD',
-  sacksAllowed: 'Sacks Allowed', qbPassingYards: 'QB Pass Yds', teamRushingYards: 'Rush Yds',
+  sacksAllowed: 'Sacks Allowed', qbDropbacks: 'Dropbacks', pressuresAllowed: 'Pressures',
+  sackRate: 'Sack Rate', pressureRate: 'Pressure Rate', qbPassingYards: 'QB Pass Yds', teamRushingYards: 'Rush Yds',
   lineRank: 'Line Rank', runBlockRank: 'Run Rank', passBlockRank: 'Pass Rank',
   sacks: 'SCK', tackles: 'TKL', forcedFumbles: 'FF', passDeflections: 'PD',
   pointsAllowed: 'Pts Allowed', yardsAllowed: 'Yds Allowed', takeaways: 'Takeaways',
@@ -36,7 +37,7 @@ const STAT_LABELS: Record<string, string> = {
 
 function formatStatValue(key: string, value: number | undefined): string {
   if (value === undefined) return '—';
-  if (['fieldGoalPct', 'threePointPct', 'battingAvg', 'onBasePct', 'sluggingPct', 'savePctSoc'].includes(key)) {
+  if (['fieldGoalPct', 'threePointPct', 'battingAvg', 'onBasePct', 'sluggingPct', 'savePctSoc', 'sackRate', 'pressureRate'].includes(key)) {
     return value.toFixed(3).replace('0.', '.');
   }
   if (['ops', 'savePct'].includes(key)) {
@@ -69,7 +70,7 @@ function getKeyStats(player: Player, sport: Sport): [string, number | undefined]
       if (player.position === 'WR' || player.position === 'TE')
         return [['receptions', s.receptions], ['receivingYards', s.receivingYards], ['receivingTDs', s.receivingTDs]];
       if (player.position === 'OL')
-        return [['sacksAllowed', s.sacksAllowed], ['qbPassingYards', s.qbPassingYards], ['teamRushingYards', s.teamRushingYards], ['lineRank', s.lineRank]];
+        return [['sacksAllowed', s.sacksAllowed], ['qbDropbacks', s.qbDropbacks], ['pressureRate', s.pressureRate], ['lineRank', s.lineRank], ['passBlockRank', s.passBlockRank]];
       if (player.position === 'DEF')
         return [['pointsAllowed', s.pointsAllowed], ['yardsAllowed', s.yardsAllowed], ['sacks', s.sacks], ['takeaways', s.takeaways], ['defensiveTfl', s.defensiveTfl], ['defensiveHofCount', s.defensiveHofCount]];
       if (player.position === 'DE' || player.position === 'DT')

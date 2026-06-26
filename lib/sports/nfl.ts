@@ -1,7 +1,7 @@
 import type { Player, HistoricalTeam, Era } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
 import { generateTeamEras } from '../constants';
-import { buildFranchiseDepthNFLPlayers } from './nfl-franchise-depth';
+import { buildFranchiseDepthNFLPlayers, enrichOffensiveLineStats } from './nfl-franchise-depth';
 import { applyNflAwardFloors } from './nfl-awards';
 
 export const NFL_TEAMS: HistoricalTeam[] = [
@@ -500,6 +500,8 @@ const CURATED_UNITS: Record<string, UnitMeta> = {
 
 const LOWER_IS_BETTER_STATS = new Set<keyof Player['stats']>([
   'sacksAllowed',
+  'sackRate',
+  'pressureRate',
   'lineRank',
   'runBlockRank',
   'passBlockRank',
@@ -544,7 +546,7 @@ function buildUnitPlayer(
     teamId: team.id,
     bestSeasonYear: source.bestSeasonYear,
     yearsWithTeam: `${era.startYear}-${era.endYear}`,
-    stats: source.stats,
+    stats: kind === 'offensiveLine' ? enrichOffensiveLineStats(source.stats) : source.stats,
     playerScore: 0,
     isLegend: source.isLegend,
   };

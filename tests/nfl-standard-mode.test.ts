@@ -58,6 +58,16 @@ describe('NFL Standard Mode', () => {
     }
   });
 
+  it('can exhaust all team-eras without reintroducing repeats', () => {
+    const fullQueue = buildEraQueue({ rng: () => 0.42 });
+    const exhausted = buildEraQueue({
+      rng: () => 0.42,
+      excludeKeys: fullQueue.map(item => item.key),
+    });
+
+    expect(exhausted).toHaveLength(0);
+  });
+
   it('makes GOAT and stacked NFL eras substantially rarer without removing them', () => {
     const ordinary: Player = { id: 'ordinary', name: 'Ordinary', position: 'QB', positionGroup: 'offense', yearsWithTeam: '2000', stats: {}, playerScore: 82 };
     const superstar: Player = { ...ordinary, id: 'superstar', playerScore: NFL_SUPERSTAR_SCORE };
