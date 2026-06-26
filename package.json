@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "deploy": "vercel deploy --prod",
+    "deploy:preview": "vercel deploy"
   },
   "dependencies": {
     "clsx": "^2.1.1",
