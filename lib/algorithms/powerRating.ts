@@ -1,5 +1,6 @@
 import type { Player, Sport, FilledRosterSlot, TeamPower, DraftMode } from '../types';
 import { clamp } from '../utils';
+import { scaleDefenseScore, scaleOlineScore, eraStartFromId } from '../nflUnitScale';
 
 // ─── Shared helper ────────────────────────────────────────────────────────────
 
@@ -344,7 +345,9 @@ export function computePlayerScore(player: Player, sport: Sport): number {
         const nflOffAvg: Record<string, number> = { QB: 41, RB: 28, WR: 48, TE: 48, K: 0, OL: 91 };
         const nflOffGoat: Record<string, number> = { QB: 82, RB: 51, WR: 104, TE: 104, K: 0, OL: 132 };
         if (player.position === 'OL') {
-          base = scoreNFLOffensePlayer(player);
+          // Era-relative: average O-line of its era ≈ 82, scaling up/down by how
+          // far it beats the mean O-line of that era window.
+          base = scaleOlineScore(player.stats, eraStartFromId(player.eraId));
         } else {
           const avg  = nflOffAvg[player.position]  ?? 40;
           const goat = nflOffGoat[player.position] ?? 80;
@@ -353,13 +356,14 @@ export function computePlayerScore(player: Player, sport: Sport): number {
       } else {
         const nflDefAvg: Record<string, number> = { DE: 50, DT: 32, LB: 57, CB: 57, S: 57, DEF: 156 };
         const nflDefGoat: Record<string, number> = { DE: 130, DT: 69, LB: 110, CB: 122, S: 122, DEF: 226 };
-        const rawDefenseScore = scoreNFLDefensePlayer(player);
         if (player.position === 'DEF') {
-          base = rawDefenseScore;
+          // Era-relative: average team defense of its era ≈ 82, scaling up/down by
+          // how far it beats the mean defense of that era window (+ star/HOF buff).
+          base = scaleDefenseScore(player.stats, eraStartFromId(player.eraId));
         } else {
           const avg  = nflDefAvg[player.position]  ?? 50;
           const goat = nflDefGoat[player.position] ?? 110;
-          base = calibrate(rawDefenseScore, avg, goat);
+          base = calibrate(scoreNFLDefensePlayer(player), avg, goat);
         }
       }
       break;
@@ -422,7 +426,9 @@ export function computePlayerScore(player: Player, sport: Sport): number {
 
 const SPORT_WEIGHTS: Record<Sport, { offense: number; defense: number; depth: number }> = {
   nba:  { offense: 0.55, defense: 0.35, depth: 0.10 },
-  nfl:  { offense: 0.45, defense: 0.45, depth: 0.10 },
+  // Defense de-weighted: the single DEF unit no longer carries as much of GSPR
+  // as the seven-deep offense (which includes the O-line).
+  nfl:  { offense: 0.57, defense: 0.33, depth: 0.10 },
   mlb:  { offense: 0.50, defense: 0.40, depth: 0.10 },
   nhl:  { offense: 0.50, defense: 0.30, depth: 0.10 },
   epl:  { offense: 0.50, defense: 0.40, depth: 0.10 },
@@ -622,6 +628,35 @@ function nflStatComboBonus(players: Player[]): BonusResult {
     bonus += 7; labels.push(`🛡️ Lockdown Defense — Elite LBs + shutdown CBs (+7)`);
   } else if (cbs.length >= 2) {
     bonus += 5; labels.push(`🔒 Cover Corner Duo — ${cbs[0].name} & ${cbs[1].name} (+5)`);
+  }
+
+  // ── Unit & balance hidden buffs (Standard Mode) ──────────────────────────────
+  const ol  = players.find(p => p.position === 'OL');
+  const def = players.find(p => p.position === 'DEF');
+  const topQbRating = Math.max(0, ...players.filter(p => p.position === 'QB').map(p => p.stats.passerRating ?? 0));
+
+  if (ol && def && ol.playerScore >= 88 && def.playerScore >= 88) {
+    bonus += 8; labels.push(`🧱 Trenches Dominance — Elite O-line and defense (+8)`);
+  }
+  if (def && (def.stats.takeaways ?? 0) >= 42) {
+    bonus += 5; labels.push(`🦅 Ball Hawks — Turnover-machine defense (+5)`);
+  }
+  if (def && (def.stats.pointsAllowed ?? 999) <= 285) {
+    bonus += 6; labels.push(`🚧 Bend-Don't-Break — Stingy scoring defense (+6)`);
+  }
+  if (ol && (ol.stats.sacksAllowed ?? 99) <= 23) {
+    bonus += 5; labels.push(`🛡️ Iron Wall — Pristine pass protection (+5)`);
+  }
+  const dualBack = players.find(p => p.position === 'RB' && (p.stats.rushingYards ?? 0) >= 1400 && (p.stats.receptions ?? 0) >= 45);
+  if (dualBack) {
+    bonus += 5; labels.push(`🐴 Dual-Threat Back — ${dualBack.name} runs and catches (+5)`);
+  }
+  const stretcher = players.find(p => p.position === 'WR' && (p.stats.receivingYards ?? 0) >= 1350);
+  if (stretcher) {
+    bonus += 4; labels.push(`💨 Field Stretcher — ${stretcher.name} threatens deep (+4)`);
+  }
+  if (topQbRating >= 98 && def && (def.stats.pointsAllowed ?? 999) <= 300) {
+    bonus += 6; labels.push(`⚖️ Complementary Football — Elite QB + top defense (+6)`);
   }
   return { total: bonus, labels };
 }
