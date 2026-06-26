@@ -12,11 +12,12 @@ interface Props {
   mode?: DraftMode;
   onDraft: (player: Player) => void;
   onSkip: () => void;
+  canDraft?: (player: Player) => boolean;
 }
 
 const SKELETON_COUNT = 8;
 
-export default function PlayerPool({ players, isLoading, sport, mode, onDraft, onSkip }: Props) {
+export default function PlayerPool({ players, isLoading, sport, mode, onDraft, onSkip, canDraft }: Props) {
   const [selected, setSelected] = useState<Player | null>(null);
   const [draftFired, setDraftFired] = useState(false);
   const draftFiredRef = useRef(false);
@@ -24,6 +25,7 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
   const visiblePlayers = (sport === 'nfl' && mode && mode !== 'combined')
     ? players.filter(p => p.positionGroup === mode)
     : players;
+  const selectedCanDraft = selected ? (canDraft?.(selected) ?? true) : false;
 
   const handleCardClick = useCallback((player: Player) => {
     if (draftFiredRef.current) return;
@@ -31,11 +33,16 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
   }, []);
 
   const handleDraft = useCallback(() => {
-    if (!selected || draftFiredRef.current) return;
+    if (!selected || !selectedCanDraft || draftFiredRef.current) return;
     draftFiredRef.current = true;
     setDraftFired(true);
     onDraft(selected);
-  }, [selected, onDraft]);
+  }, [selected, selectedCanDraft, onDraft]);
+
+  const handleCancelSelection = useCallback(() => {
+    if (draftFiredRef.current) return;
+    setSelected(null);
+  }, []);
 
   const handleSkip = useCallback(() => {
     if (draftFiredRef.current) return;
@@ -103,20 +110,25 @@ export default function PlayerPool({ players, isLoading, sport, mode, onDraft, o
           player={selected}
           sport={sport}
           title="Draft Player"
-          onClose={() => setSelected(null)}
+          onClose={handleCancelSelection}
           actions={
             <>
               <button
                 onClick={handleDraft}
-                className="flex-1 rounded-xl bg-white px-4 py-3 text-sm font-black uppercase tracking-wide text-black transition-transform hover:bg-gray-200 active:scale-[0.98]"
+                disabled={!selectedCanDraft}
+                className={`flex-1 rounded-xl px-4 py-3 text-sm font-black uppercase tracking-wide transition-transform ${
+                  selectedCanDraft
+                    ? 'bg-white text-black hover:bg-gray-200 active:scale-[0.98]'
+                    : 'cursor-not-allowed bg-white/5 text-gray-600'
+                }`}
               >
-                Draft
+                {selectedCanDraft ? 'Draft' : 'Slot Filled'}
               </button>
               <button
-                onClick={handleSkip}
+                onClick={handleCancelSelection}
                 className="rounded-xl border border-white/10 px-4 py-3 text-sm text-gray-400 hover:border-white/20 hover:text-white"
               >
-                Skip
+                Cancel
               </button>
             </>
           }

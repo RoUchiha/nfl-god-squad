@@ -89,6 +89,11 @@ export default function GameContainer() {
   const openRequired   = totalRequired.filter(s => !s.player);
   const gspr           = slots.length > 0 && team ? computeTeamGSPR(slots, sport, mode).gspr : 0;
 
+  const canDraftPlayer = useCallback((player: Player) => {
+    if (gameplayLocked) return false;
+    return slots.some(slot => !slot.player && positionMatches(slot.position, player.position));
+  }, [gameplayLocked, slots]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // loadPlayers — fetches player data for current era (unchanged)
   // ─────────────────────────────────────────────────────────────────────────
@@ -224,9 +229,10 @@ export default function GameContainer() {
     if (draftGuardRef.current) return;
     draftGuardRef.current = true;
 
-    // Idempotency: player already in roster → skip to next pick instead of double-placing
+    // Idempotency: player already in roster stays on the same team-era.
     if (slots.some(s => s.player?.id === player.id)) {
-      advancePick(eraQueueRef.current);
+      draftGuardRef.current = false;
+      setError(`${player.name} is already on your roster.`);
       return;
     }
 
@@ -245,9 +251,10 @@ export default function GameContainer() {
     }
 
     if (compatible.length === 0) {
-      // No compatible slot — skip placement, advance pick
+      // No compatible open slot: stay on the same team-era.
+      draftGuardRef.current = false;
       setJustPlacedSlotId(null);
-      advancePick(eraQueueRef.current);
+      setError(`No open ${player.position.replace('_MLB', '').replace('_NHL', '')} slot is available. Cancel and pick a compatible player.`);
       return;
     }
 
@@ -277,8 +284,9 @@ export default function GameContainer() {
     if (gameplayLocked) return;
     setPlayerToPlace(null);
     setJustPlacedSlotId(null);
-    advancePick(eraQueueRef.current);
-  }, [advancePick, gameplayLocked]);
+    setPickPhase('ready');
+    draftGuardRef.current = false;
+  }, [gameplayLocked]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Rerolls — pull from the remaining queue instead of calling the era API
@@ -504,6 +512,7 @@ export default function GameContainer() {
               mode={mode}
               onDraft={handleDraft}
               onSkip={handleSkip}
+              canDraft={canDraftPlayer}
             />
           ) : (
             <div className="flex flex-col">

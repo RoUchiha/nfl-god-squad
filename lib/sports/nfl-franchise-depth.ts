@@ -240,6 +240,62 @@ const UNIT_OVERRIDES: Record<string, {
   '26-2010': { defense: 'Legion of Boom Defense', defensiveStarCount: 5, defensiveHofCount: 1 },
 };
 
+type OLineRankSet = { lineRank: number; runBlockRank: number; passBlockRank: number };
+
+function offensiveLineScore(stats: Player['stats']): { overall: number; run: number; pass: number } {
+  const sacksAllowed = Math.max(8, stats.sacksAllowed ?? 36);
+  const passingYards = stats.qbPassingYards ?? 3600;
+  const rushingYards = stats.teamRushingYards ?? 1700;
+  const pass = (passingYards / sacksAllowed) * 7.5 - sacksAllowed * 2.6;
+  const run = rushingYards * 0.42;
+  return {
+    overall: pass * 0.58 + run * 0.42,
+    run,
+    pass,
+  };
+}
+
+function rankDescending<T>(items: T[], score: (item: T) => number): Map<T, number> {
+  const ranked = [...items].sort((a, b) => score(b) - score(a));
+  return new Map(ranked.map((item, index) => [item, index + 1]));
+}
+
+const GENERATED_OL_RANKS: Record<string, OLineRankSet> = (() => {
+  const records: Array<{ key: string; season: number; stats: Player['stats']; scores: { overall: number; run: number; pass: number } }> = [];
+  for (const [teamId, byEra] of Object.entries(NFLVERSE_GENERATED_UNITS)) {
+    for (const [startYear, unit] of Object.entries(byEra)) {
+      const stats = unit.offensiveLine.stats;
+      records.push({
+        key: `${teamId}-${startYear}`,
+        season: unit.offensiveLine.bestSeasonYear,
+        stats,
+        scores: offensiveLineScore(stats),
+      });
+    }
+  }
+
+  const bySeason = new Map<number, typeof records>();
+  for (const record of records) {
+    bySeason.set(record.season, [...(bySeason.get(record.season) ?? []), record]);
+  }
+
+  const ranks: Record<string, OLineRankSet> = {};
+  for (const seasonRecords of bySeason.values()) {
+    const overall = rankDescending(seasonRecords, record => record.scores.overall);
+    const run = rankDescending(seasonRecords, record => record.scores.run);
+    const pass = rankDescending(seasonRecords, record => record.scores.pass);
+    for (const record of seasonRecords) {
+      ranks[record.key] = {
+        lineRank: overall.get(record) ?? 16,
+        runBlockRank: run.get(record) ?? 16,
+        passBlockRank: pass.get(record) ?? 16,
+      };
+    }
+  }
+
+  return ranks;
+})();
+
 function seededRange(seed: number, offset: number, span: number): number {
   const raw = Math.sin(seed * 12.9898 + offset * 78.233) * 43758.5453;
   return Math.floor((raw - Math.floor(raw)) * span);
@@ -309,7 +365,13 @@ function buildSkillPlayer(team: HistoricalTeam, era: Era, source: DepthPlayer, i
 function unitStats(team: HistoricalTeam, era: Era, kind: 'ol' | 'def', selected: Player[]): Player['stats'] {
   const generated = NFLVERSE_GENERATED_UNITS[team.id]?.[String(era.startYear)];
   if (generated) {
-    return kind === 'ol' ? generated.offensiveLine.stats : generated.defense.stats;
+    if (kind === 'ol') {
+      return {
+        ...generated.offensiveLine.stats,
+        ...(GENERATED_OL_RANKS[`${team.id}-${era.startYear}`] ?? {}),
+      };
+    }
+    return generated.defense.stats;
   }
 
   const seed = parseInt(team.id, 10) * 43 + era.startYear * 7 + (kind === 'ol' ? 1 : 2);

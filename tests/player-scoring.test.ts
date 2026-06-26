@@ -94,4 +94,36 @@ describe('NFL player scoring', () => {
     expect(computePlayerScore(line, 'nfl')).toBeGreaterThanOrEqual(88);
     expect(computePlayerScore(defense, 'nfl')).toBeGreaterThanOrEqual(88);
   });
+
+  it('only lets top-five O-lines reach 90+', () => {
+    const topFiveLine = makeNFLPlayer({
+      id: 'top-five-line',
+      name: 'Top Five O-Line',
+      position: 'OL',
+      stats: {
+        sacksAllowed: 22,
+        qbPassingYards: 4300,
+        teamRushingYards: 2100,
+        lineRank: 5,
+        runBlockRank: 5,
+        passBlockRank: 4,
+      },
+    });
+    const volumeDrivenMidLine = makeNFLPlayer({
+      id: 'mid-line',
+      name: 'Volume O-Line',
+      position: 'OL',
+      stats: {
+        sacksAllowed: 18,
+        qbPassingYards: 5200,
+        teamRushingYards: 2500,
+        lineRank: 14,
+        runBlockRank: 7,
+        passBlockRank: 7,
+      },
+    });
+
+    expect(computePlayerScore(topFiveLine, 'nfl')).toBeGreaterThanOrEqual(90);
+    expect(computePlayerScore(volumeDrivenMidLine, 'nfl')).toBeLessThan(90);
+  });
 });

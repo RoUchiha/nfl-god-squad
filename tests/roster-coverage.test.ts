@@ -109,4 +109,16 @@ describe('NFL Standard Mode roster coverage', () => {
     expect(average).toBeLessThanOrEqual(78);
     expect(Math.max(...defenseScores)).toBeGreaterThanOrEqual(90);
   });
+
+  it('keeps 90+ O-line cards limited to top-five line ranks', async () => {
+    for (const { team, era } of getCuratedNFLEraCatalog()) {
+      const players = await fetchNFLPlayers(team, era);
+      const line = players.find(player => player.position === 'OL');
+      expect(line, `${team.abbreviation} ${era.startYear}-${era.endYear}`).toBeDefined();
+      if (!line) continue;
+      if (line.playerScore >= 90) {
+        expect(line.stats.lineRank, `${line.name} ${line.playerScore}`).toBeLessThanOrEqual(5);
+      }
+    }
+  });
 });

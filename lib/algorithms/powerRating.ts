@@ -104,17 +104,18 @@ function scoreNFLOffensePlayer(p: Player): number {
     const sacksAllowed = s.sacksAllowed ?? 35;
     const qbPassingYards = s.qbPassingYards ?? s.passingYards ?? 3600;
     const teamRushingYards = s.teamRushingYards ?? s.rushingYards ?? 1650;
-    return clamp(
-      75
-      + Math.max(-8, Math.min(16, (38 - sacksAllowed) * 0.55))
-      + Math.max(-4, Math.min(11, (qbPassingYards - 3400) / 190))
-      + Math.max(-4, Math.min(10, (teamRushingYards - 1500) / 150))
-      + Math.max(-6, Math.min(8, (12 - lineRank) * 0.55))
-      + Math.max(-4, Math.min(5, (14 - runRank) * 0.22))
-      + Math.max(-4, Math.min(5, (14 - passRank) * 0.22)),
-      70,
-      99
-    );
+    const rankBase = 96 - (lineRank - 1) * 1.55;
+    const sackAdjustment = Math.max(-3, Math.min(3, (31 - sacksAllowed) / 5));
+    const passProduction = Math.max(-2, Math.min(2.5, (qbPassingYards - 3800) / 650));
+    const runProduction = Math.max(-2, Math.min(2.5, (teamRushingYards - 1850) / 450));
+    const specialtyAdjustment =
+      Math.max(-1.5, Math.min(1.5, (8 - passRank) * 0.18)) +
+      Math.max(-1.5, Math.min(1.5, (8 - runRank) * 0.18));
+    const uncapped = rankBase + sackAdjustment + passProduction + runProduction + specialtyAdjustment;
+    const rankCapped = lineRank <= 5
+      ? Math.max(90, uncapped)
+      : Math.min(89, uncapped);
+    return clamp(rankCapped, 70, 99);
   }
 
   if (p.position === 'K') {
