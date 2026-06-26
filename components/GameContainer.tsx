@@ -10,6 +10,7 @@ import { getRosterTemplates, SPORT_CONFIG } from '@/lib/constants';
 import { computeTeamGSPR } from '@/lib/algorithms/powerRating';
 import { buildEraQueue, pickGambleEra, type EraQueueItem } from '@/lib/eraQueue';
 import { selectGambleReplacement } from '@/lib/gamble';
+import { rosterHasPlayer } from '@/lib/playerIdentity';
 import EraCard from './EraCard';
 import PlayerPool from './PlayerPool';
 import TeamRoster from './TeamRoster';
@@ -91,6 +92,7 @@ export default function GameContainer() {
 
   const canDraftPlayer = useCallback((player: Player) => {
     if (gameplayLocked) return false;
+    if (rosterHasPlayer(slots, player)) return false;
     return slots.some(slot => !slot.player && positionMatches(slot.position, player.position));
   }, [gameplayLocked, slots]);
 
@@ -232,8 +234,8 @@ export default function GameContainer() {
     if (draftGuardRef.current) return;
     draftGuardRef.current = true;
 
-    // Idempotency: player already in roster stays on the same team-era.
-    if (slots.some(s => s.player?.id === player.id)) {
+    // Idempotency: the same real player cannot be drafted twice across teams/eras.
+    if (rosterHasPlayer(slots, player)) {
       draftGuardRef.current = false;
       setError(`${player.name} is already on your roster.`);
       return;

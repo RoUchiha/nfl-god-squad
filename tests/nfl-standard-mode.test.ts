@@ -95,4 +95,27 @@ describe('NFL Standard Mode', () => {
     expect(canonical.slots![0].player?.name).not.toBe('Cheat Code');
     expect(validateSimulationRoster(canonical.slots!)).toBeNull();
   });
+
+  it('rejects duplicate real players across different teams or eras', async () => {
+    const roster = await buildCompleteRoster();
+    const qbSlot = roster.find(slot => slot.id === 'qb');
+    expect(qbSlot?.player).toBeTruthy();
+
+    const duplicated = roster.map(slot => {
+      if (slot.id !== 'flex' || !qbSlot?.player) return slot;
+      return {
+        ...slot,
+        player: {
+          ...qbSlot.player,
+          id: 'different-team-era-duplicate',
+          name: `${qbSlot.player.name} Jr.`,
+          position: 'RB' as const,
+          teamId: '27',
+          eraId: 'nfl-27-2020',
+        },
+      };
+    });
+
+    expect(validateSimulationRoster(duplicated)).toBe('Duplicate players are not allowed.');
+  });
 });

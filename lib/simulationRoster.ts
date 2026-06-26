@@ -2,18 +2,9 @@ import type { FilledRosterSlot, Position } from './types';
 import { getRosterTemplates } from './constants';
 import { getCuratedNFLPlayers, NFL_TEAMS } from './sports/nfl';
 import { getCuratedNFLEraCatalog } from './sports/nfl';
+import { normalizePlayerName } from './playerIdentity';
 
 const REQUIRED_SLOTS = getRosterTemplates('nfl', 'combined');
-
-function normalizeName(name: string): string {
-  return name
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\u2018\u2019'.]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
 
 function slotAcceptsPosition(slotPosition: Position | Position[], playerPosition: Position): boolean {
   return Array.isArray(slotPosition)
@@ -44,7 +35,7 @@ export function validateSimulationRoster(slots: FilledRosterSlot[]): string | nu
       return `${slot.player.name} is not eligible for ${slot.label}.`;
     }
 
-    const normalized = normalizeName(slot.player.name);
+    const normalized = normalizePlayerName(slot.player.name);
     if (playerNames.has(normalized)) return 'Duplicate players are not allowed.';
     playerNames.add(normalized);
   }
