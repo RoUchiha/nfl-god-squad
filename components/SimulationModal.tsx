@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlayerSeasonStatLine, PlayoffBracket, PlayoffGame, PlayoffSeed, SeasonResults } from '@/lib/types';
 import { SPORT_CONFIG, getEraName } from '@/lib/constants';
 import { getNflTeamById } from '@/lib/sports/nfl-teams';
@@ -381,23 +381,51 @@ function PlayoffPicture({
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
 function SeasonBar({ games }: { games: SeasonResults['games'] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const small = games.length > 100;
+  const n = games.length;
   return (
     <div>
-      <div className="text-xs text-gray-600 mb-1.5">Season results</div>
+      <div className="text-xs text-gray-600 mb-1.5">
+        Season results <span className="text-gray-700">· hover a game for the final score</span>
+      </div>
       <div className="flex gap-[2px] flex-wrap">
-        {games.map(g => (
-          <div
-            key={g.gameNumber}
-            title={`Game ${g.gameNumber}: ${g.win ? 'W' : 'L'} (${g.opponentTier})`}
-            className="rounded-[2px] transition-all"
-            style={{
-              width: games.length > 100 ? '4px' : '6px',
-              height: games.length > 100 ? '10px' : '14px',
-              backgroundColor: g.win ? '#22c55e' : '#ef4444',
-              opacity: 0.85,
-            }}
-          />
-        ))}
+        {games.map((g, i) => {
+          const isHovered = hovered === g.gameNumber;
+          // Anchor the tooltip so the first/last bars don't clip off the edge.
+          const anchor = i <= 1 ? 'left-0' : i >= n - 2 ? 'right-0' : 'left-1/2 -translate-x-1/2';
+          return (
+            <div
+              key={g.gameNumber}
+              className="relative rounded-[2px] cursor-help transition-transform"
+              style={{
+                width: small ? '4px' : '6px',
+                height: small ? '10px' : '14px',
+                backgroundColor: g.win ? '#22c55e' : '#ef4444',
+                opacity: isHovered ? 1 : 0.85,
+                transform: isHovered ? 'scaleY(1.3)' : undefined,
+                outline: isHovered ? '1px solid rgba(255,255,255,0.6)' : undefined,
+              }}
+              onMouseEnter={() => setHovered(g.gameNumber)}
+              onMouseLeave={() => setHovered(h => (h === g.gameNumber ? null : h))}
+              aria-label={`Game ${g.gameNumber}: ${g.win ? 'Win' : 'Loss'} ${g.teamScore ?? 0}-${g.opponentScore ?? 0} ${g.isHome ? 'vs' : 'at'} ${g.opponentAbbreviation ?? g.opponentTier}`}
+            >
+              {isHovered && (
+                <div className={`absolute bottom-full z-20 mb-1.5 ${anchor} whitespace-nowrap rounded-md border border-white/15 bg-black/95 px-2.5 py-1.5 text-center shadow-xl`}>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                    Game {g.gameNumber} · {g.isHome ? 'Home' : 'Away'}
+                  </div>
+                  <div className="text-sm font-black tabular-nums" style={{ color: g.win ? '#22c55e' : '#ef4444' }}>
+                    {g.win ? 'W' : 'L'} {g.teamScore ?? 0}–{g.opponentScore ?? 0}
+                  </div>
+                  <div className="text-[10px] text-gray-400">
+                    {g.isHome ? 'vs' : '@'} {g.opponentAbbreviation ?? g.opponentName ?? g.opponentTier} · {g.opponentTier}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
