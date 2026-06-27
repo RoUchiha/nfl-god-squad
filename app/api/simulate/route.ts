@@ -42,9 +42,10 @@ const PlayerStatsSchema = z.object({
   defensiveStarCount: CountStat.optional(),
   defensiveHofCount: CountStat.optional(),
   fieldGoalPct: RateStat.optional(),
+  fieldGoalsMade: CountStat.optional(),
 }).strict();
 
-const PositionSchema = z.enum(['QB', 'RB', 'WR', 'TE', 'OL', 'DEF']);
+const PositionSchema = z.enum(['QB', 'RB', 'WR', 'TE', 'K', 'OL', 'DEF']);
 
 const PlayerSchema = z.object({
   id: z.string().min(1).max(100).regex(/^[a-zA-Z0-9._-]+$/),
@@ -74,7 +75,7 @@ const RosterSlotSchema = z.object({
 const SimulateBodySchema = z.object({
   sport: z.literal('nfl'),
   mode: z.literal('combined'),
-  slots: z.array(RosterSlotSchema).length(8),
+  slots: z.array(RosterSlotSchema).length(9),
 }).strict();
 
 export async function POST(req: NextRequest) {

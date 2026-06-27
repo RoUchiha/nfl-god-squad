@@ -64,6 +64,7 @@ export interface PlayerStats {
   lineRank?: number;
   runBlockRank?: number;
   passBlockRank?: number;
+  fieldGoalsMade?: number;
   // NFL Defense
   sacks?: number;
   interceptions?: number;
@@ -169,6 +170,12 @@ export interface TeamCompositionAnalysis {
   cons: string[];
 }
 
+export type NFLDivision =
+  | 'AFC East' | 'AFC North' | 'AFC South' | 'AFC West'
+  | 'NFC East' | 'NFC North' | 'NFC South' | 'NFC West';
+
+export type PlayoffStatus = 'division-winner' | 'wildcard' | 'in-hunt' | 'eliminated';
+
 export interface LeagueStanding {
   rank: number;
   conferenceRank: number;
@@ -177,10 +184,16 @@ export interface LeagueStanding {
   city: string;
   abbreviation: string;
   conference: string;
+  division?: NFLDivision;
   wins: number;
   losses: number;
+  ties?: number;
+  pointsFor?: number;
+  pointsAgainst?: number;
   gspr: number;
   powerScore: number;
+  seed?: number;            // 1–7 within conference if a playoff team
+  playoffStatus?: PlayoffStatus;
   isCustomTeam?: boolean;
 }
 
@@ -190,10 +203,50 @@ export interface NFLTeamStrength {
   city: string;
   abbreviation: string;
   conference: 'AFC' | 'NFC';
+  division: NFLDivision;
   gspr: number;
   offenseScore: number;
   defenseScore: number;
+  baselineWins: number;
+  baselineLosses: number;
+  pointsForPg: number;
+  pointsAgainstPg: number;
+  notable: string[];
   snapshotDate: string;
+}
+
+// ─── Playoff bracket ──────────────────────────────────────────────────────────
+
+export interface PlayoffSeed {
+  seed: number;
+  teamId: string;
+  abbreviation: string;
+  city: string;
+  name: string;
+  conference: 'AFC' | 'NFC';
+  wins: number;
+  losses: number;
+  isCustomTeam?: boolean;
+}
+
+export interface PlayoffGame {
+  round: 'Wild Card' | 'Divisional' | 'Conference' | 'Super Bowl';
+  conference?: 'AFC' | 'NFC';
+  home: PlayoffSeed;
+  away: PlayoffSeed;
+  homeScore: number;
+  awayScore: number;
+  winnerId: string;
+}
+
+export interface PlayoffBracket {
+  afcSeeds: PlayoffSeed[];   // 7 seeds
+  nfcSeeds: PlayoffSeed[];
+  rounds: { name: string; games: PlayoffGame[] }[];
+  champion: PlayoffSeed;
+  superBowl: PlayoffGame;
+  customMadePlayoffs: boolean;
+  customResult: string;      // e.g. "Won Super Bowl", "Lost in Divisional Round", "Missed playoffs"
 }
 
 export interface PlayerSeasonStatLine {
@@ -201,6 +254,8 @@ export interface PlayerSeasonStatLine {
   name: string;
   position: Position;
   slotLabel: string;
+  teamId?: string;
+  eraId?: string;
   playerScore: number;
   gamesPlayed: number;
   passingYards?: number;
@@ -214,6 +269,8 @@ export interface PlayerSeasonStatLine {
   pointsAllowed?: number;
   sacks?: number;
   takeaways?: number;
+  fieldGoalPct?: number;
+  fieldGoalsMade?: number;
 }
 
 export interface SeasonResults {
@@ -225,8 +282,11 @@ export interface SeasonResults {
   teamPower: TeamPower;
   compositionAnalysis?: TeamCompositionAnalysis;
   leagueStandings?: LeagueStanding[];
+  playoffs?: PlayoffBracket;
+  customSeed?: number;
   rosterStats?: PlayerSeasonStatLine[];
   teamStrengthSnapshotDate?: string;
+  baselineLabel?: string;
   isUndefeated: boolean;
   longestWinStreak: number;
   achievement: string;

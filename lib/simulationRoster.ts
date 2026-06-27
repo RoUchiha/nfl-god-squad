@@ -13,7 +13,7 @@ function slotAcceptsPosition(slotPosition: Position | Position[], playerPosition
 }
 
 export function validateSimulationRoster(slots: FilledRosterSlot[]): string | null {
-  if (slots.length !== REQUIRED_SLOTS.length) return 'A complete eight-slot NFL roster is required.';
+  if (slots.length !== REQUIRED_SLOTS.length) return 'A complete NFL roster is required.';
 
   const slotIds = new Set(slots.map(slot => slot.id));
   if (slotIds.size !== slots.length || REQUIRED_SLOTS.some(template => !slotIds.has(template.id))) {
@@ -30,7 +30,7 @@ export function validateSimulationRoster(slots: FilledRosterSlot[]): string | nu
     if (JSON.stringify(slot.position) !== JSON.stringify(template.position)) {
       return 'Roster slots do not match the NFL Standard Mode template.';
     }
-    if (!slot.player) return 'A complete eight-slot NFL roster is required.';
+    if (!slot.player) return 'A complete NFL roster is required.';
     if (!slotAcceptsPosition(template.position, slot.player.position)) {
       return `${slot.player.name} is not eligible for ${slot.label}.`;
     }

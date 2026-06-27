@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto';
 import type {
   FilledRosterSlot,
   GameResult,
+  LeagueStanding,
   NFLTeamStrength,
   PlayerSeasonStatLine,
   SeasonResults,
@@ -13,11 +14,15 @@ import { SPORT_CONFIG } from '../constants';
 import { clamp, getAchievement } from '../utils';
 import {
   buildNflSchedule,
+  computeConferenceSeeds,
+  conferenceSeedsToPlayoffSeeds,
   getHardcodedNflTeamStrengths,
   matchupWinProbability,
   rankLeagueStandings,
   simulateLeagueStandings,
 } from '../nflLeague';
+import { simulatePlayoffs, type BracketStrength } from '../nflPlayoffs';
+import { NFL_BASELINE_LABEL } from '../nflLastSeason';
 
 const WIN_PROB_CONFIG: Record<Sport, { base: number; range: number; power: number }> = {
   nba: { base: 0.62, range: 0.365, power: 1.8 },
@@ -88,6 +93,8 @@ function simulateRosterStats(slots: FilledRosterSlot[], teamPower: TeamPower, ra
       name: player.name,
       position: player.position,
       slotLabel: slot.label,
+      teamId: player.teamId,
+      eraId: player.eraId,
       playerScore: player.playerScore,
       gamesPlayed: Math.max(12, Math.min(17, Math.round(15 + rand() * 2.2))),
     };
@@ -111,6 +118,7 @@ function simulateRosterStats(slots: FilledRosterSlot[], teamPower: TeamPower, ra
       };
     }
     if (player.position === 'OL') return { ...base, sacksAllowed: player.stats.sacksAllowed };
+    if (player.position === 'K') return { ...base, fieldGoalPct: player.stats.fieldGoalPct, fieldGoalsMade: player.stats.fieldGoalsMade };
     if (player.position === 'DEF') {
       return {
         ...base,
@@ -172,21 +180,43 @@ export function simulateSeason(
   }
 
   const { title: achievement, subtext: achievementSubtext } = getAchievement(wins, losses, sport);
+
+  // ── League standings + playoff picture (NFL) ────────────────────────────────
   const realTeamStandings = simulateLeagueStandings(teamStrengths, rand);
-  const customStanding = {
+  const customConference: 'AFC' | 'NFC' = rand() < 0.5 ? 'AFC' : 'NFC';
+  const customStanding: LeagueStanding = {
     rank: 0,
     conferenceRank: 0,
     teamId: 'custom',
     name: 'God Squad',
     city: 'Your',
     abbreviation: 'GOD',
-    conference: 'AFC',
+    conference: customConference,
     wins,
     losses,
+    pointsFor: games.reduce((sum, g) => sum + (g.teamScore ?? 0), 0),
+    pointsAgainst: games.reduce((sum, g) => sum + (g.opponentScore ?? 0), 0),
     gspr: teamPower.gspr,
-    powerScore: teamPower.gspr + wins * 9 + teamPower.offenseScore + teamPower.defenseScore,
+    powerScore: Math.round(teamPower.gspr + wins * 9 + teamPower.offenseScore + teamPower.defenseScore),
     isCustomTeam: true,
   };
+
+  const leagueStandings = rankLeagueStandings([...realTeamStandings, customStanding]);
+  const customSeed = leagueStandings.find(s => s.isCustomTeam)?.seed;
+
+  let playoffs: SeasonResults['playoffs'];
+  if (sport === 'nfl') {
+    const afcSeeds = conferenceSeedsToPlayoffSeeds(computeConferenceSeeds('AFC', leagueStandings).seeds);
+    const nfcSeeds = conferenceSeedsToPlayoffSeeds(computeConferenceSeeds('NFC', leagueStandings).seeds);
+    const strengthMap = new Map<string, BracketStrength>();
+    for (const team of teamStrengths) {
+      strengthMap.set(team.teamId, { gspr: team.gspr, offenseScore: team.offenseScore, defenseScore: team.defenseScore });
+    }
+    strengthMap.set('custom', { gspr: teamPower.gspr, offenseScore: teamPower.offenseScore, defenseScore: teamPower.defenseScore });
+    const strengthOf = (id: string): BracketStrength =>
+      strengthMap.get(id) ?? { gspr: 700, offenseScore: 75, defenseScore: 75 };
+    playoffs = simulatePlayoffs(afcSeeds, nfcSeeds, strengthOf, 'custom', rand);
+  }
 
   return {
     sport,
@@ -196,9 +226,12 @@ export function simulateSeason(
     games,
     teamPower,
     compositionAnalysis,
-    leagueStandings: rankLeagueStandings([...realTeamStandings, customStanding]),
+    leagueStandings,
+    playoffs,
+    customSeed,
     rosterStats: simulateRosterStats(rosterSlots, teamPower, rand),
     teamStrengthSnapshotDate: teamStrengths[0]?.snapshotDate,
+    baselineLabel: sport === 'nfl' ? NFL_BASELINE_LABEL : undefined,
     isUndefeated: losses === 0,
     longestWinStreak: longestStreak,
     achievement,

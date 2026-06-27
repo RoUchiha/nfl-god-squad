@@ -1,5 +1,6 @@
 import type { Era, HistoricalTeam, Player } from '../types';
 import { computePlayerScore } from '../algorithms/powerRating';
+import { kickerEraBaselineFg } from '../nflUnitScale';
 import { applyNflAwardFloors } from './nfl-awards';
 import { NFLVERSE_GENERATED_DEPTH_PLAYERS, NFLVERSE_GENERATED_UNITS } from './nflverse-generated-depth';
 
@@ -447,6 +448,48 @@ function buildUnit(team: HistoricalTeam, era: Era, kind: 'ol' | 'def', selected:
   return player;
 }
 
+// Era-appropriate real kicker names. Buckets keep a 1970s roster from drawing a
+// modern kicker (and vice-versa); the team won't always match historically, which
+// is acceptable for a cross-era fantasy squad.
+const KICKER_NAMES_BY_ERA: { maxYear: number; names: string[]; legends: string[] }[] = [
+  { maxYear: 1984, names: ['Jan Stenerud', 'George Blanda', 'Garo Yepremian', 'Mark Moseley', 'Jim Bakken', 'Toni Fritsch'], legends: ['Jan Stenerud'] },
+  { maxYear: 1999, names: ['Morten Andersen', 'Gary Anderson', 'Nick Lowery', 'Norm Johnson', 'Eddie Murray', 'Pete Stoyanovich'], legends: ['Morten Andersen', 'Gary Anderson'] },
+  { maxYear: 2014, names: ['Adam Vinatieri', 'David Akers', 'Jason Hanson', 'Stephen Gostkowski', 'Sebastian Janikowski', 'Robbie Gould', 'Matt Stover'], legends: ['Adam Vinatieri'] },
+  { maxYear: 2100, names: ['Justin Tucker', 'Harrison Butker', 'Daniel Carlson', 'Younghoe Koo', 'Tyler Bass', 'Jake Elliott', 'Wil Lutz', 'Brandon Aubrey'], legends: ['Justin Tucker'] },
+];
+
+function kickerBucket(startYear: number) {
+  return KICKER_NAMES_BY_ERA.find(b => startYear <= b.maxYear) ?? KICKER_NAMES_BY_ERA[KICKER_NAMES_BY_ERA.length - 1];
+}
+
+// Deterministic so the canonicalizer rebuilds an identical kicker by id.
+export function buildEraKicker(team: HistoricalTeam, era: Era): Player {
+  const seed = parseInt(team.id, 10) * 97 + era.startYear * 13 + 5;
+  const bucket = kickerBucket(era.startYear);
+  const name = bucket.names[seededRange(seed, 2, bucket.names.length)];
+
+  const baselineFg = kickerEraBaselineFg(era.startYear);
+  const fgPct = Math.min(0.96, Math.max(0.55, baselineFg + (seededRange(seed, 4, 1000) / 1000 - 0.5) * 0.13));
+  const fieldGoalsMade = 17 + seededRange(seed, 6, 19);
+  const isLegend = bucket.legends.includes(name) && fgPct >= baselineFg;
+
+  const player: Player = {
+    id: `nfl-kicker-${team.id}-${era.id}`,
+    name,
+    position: 'K',
+    positionGroup: 'offense',
+    eraId: era.id,
+    teamId: team.id,
+    bestSeasonYear: era.startYear + seededRange(seed, 7, Math.max(1, era.endYear - era.startYear + 1)),
+    yearsWithTeam: `${era.startYear}-${era.endYear}`,
+    stats: { fieldGoalPct: Math.round(fgPct * 1000) / 1000, fieldGoalsMade },
+    playerScore: 0,
+    isLegend,
+  };
+  player.playerScore = computePlayerScore(player, 'nfl');
+  return player;
+}
+
 export function buildFranchiseDepthNFLPlayers(team: HistoricalTeam, era: Era): Player[] {
   const depth = [
     ...(NFL_FRANCHISE_DEPTH_PLAYERS[team.id] ?? []),
@@ -483,7 +526,7 @@ export function buildFranchiseDepthNFLPlayers(team: HistoricalTeam, era: Era): P
   add([flex]);
 
   const players = selectedSources.map((player, index) => buildSkillPlayer(team, era, player, index));
-  players.push(buildUnit(team, era, 'ol', players), buildUnit(team, era, 'def', players));
+  players.push(buildUnit(team, era, 'ol', players), buildUnit(team, era, 'def', players), buildEraKicker(team, era));
 
   return players.sort((a, b) => b.playerScore - a.playerScore || a.name.localeCompare(b.name));
 }

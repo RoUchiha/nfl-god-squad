@@ -1,6 +1,8 @@
 'use client';
 
 import type { Player, Sport } from '@/lib/types';
+import { getNflTeamById } from '@/lib/sports/nfl-teams';
+import { getEraName } from '@/lib/constants';
 
 interface Props {
   player: Player;
@@ -24,6 +26,7 @@ const STAT_LABELS: Record<string, string> = {
   sacks: 'SCK', tackles: 'TKL', forcedFumbles: 'FF', passDeflections: 'PD',
   pointsAllowed: 'Pts Allowed', yardsAllowed: 'Yds Allowed', takeaways: 'Takeaways',
   defensiveTfl: 'TFL', defensiveStarCount: 'Stars', defensiveHofCount: 'HOF',
+  fieldGoalsMade: 'FG',
   // MLB
   battingAvg: 'AVG', homeRuns: 'HR', rbi: 'RBI', ops: 'OPS', stolenBases: 'SB', onBasePct: 'OBP',
   era: 'ERA', whip: 'WHIP', strikeoutsPerNine: 'K/9', wins: 'W', saves: 'SV', inningsPitched: 'IP',
@@ -71,6 +74,8 @@ function getKeyStats(player: Player, sport: Sport): [string, number | undefined]
         return [['receptions', s.receptions], ['receivingYards', s.receivingYards], ['receivingTDs', s.receivingTDs]];
       if (player.position === 'OL')
         return [['sacksAllowed', s.sacksAllowed], ['qbDropbacks', s.qbDropbacks], ['pressureRate', s.pressureRate], ['lineRank', s.lineRank], ['passBlockRank', s.passBlockRank]];
+      if (player.position === 'K')
+        return [['fieldGoalPct', s.fieldGoalPct], ['fieldGoalsMade', s.fieldGoalsMade]];
       if (player.position === 'DEF')
         return [['pointsAllowed', s.pointsAllowed], ['yardsAllowed', s.yardsAllowed], ['sacks', s.sacks], ['takeaways', s.takeaways], ['defensiveTfl', s.defensiveTfl], ['defensiveHofCount', s.defensiveHofCount]];
       if (player.position === 'DE' || player.position === 'DT')
@@ -110,6 +115,8 @@ function scoreColor(score: number): string {
 
 export default function PlayerCard({ player, sport, isSelected, isHighlighted, onSelect }: Props) {
   const keyStats = getKeyStats(player, sport);
+  const nflTeam = sport === 'nfl' ? getNflTeamById(player.teamId) : null;
+  const eraName = sport === 'nfl' ? getEraName(player.eraId) : null;
 
   return (
     <button
@@ -142,10 +149,16 @@ export default function PlayerCard({ player, sport, isSelected, isHighlighted, o
             )}
           </div>
           <div className="font-semibold text-sm text-white mt-1 truncate">{player.name}</div>
+          {nflTeam && (
+            <div className="text-[10px] mt-0.5 truncate">
+              <span className="font-medium text-gray-300">{nflTeam.city} {nflTeam.name}</span>
+              {eraName && <span className="text-gray-500"> · {eraName}</span>}
+            </div>
+          )}
           <div className="text-[10px] text-gray-600 mt-0.5">
-            {player.yearsWithTeam}
+            {player.yearsWithTeam} era
             {player.bestSeasonYear && (
-              <span className="ml-1.5 text-blue-500/70">{player.bestSeasonYear}</span>
+              <span className="ml-1.5 text-blue-500/70">peak {player.bestSeasonYear}</span>
             )}
           </div>
         </div>

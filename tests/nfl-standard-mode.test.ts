@@ -56,7 +56,8 @@ describe('NFL Standard Mode', () => {
       expect(positions.has('TE')).toBe(true);
       expect(positions.has('OL')).toBe(true);
       expect(positions.has('DEF')).toBe(true);
-      expect(players.some(player => ['DE', 'DT', 'LB', 'CB', 'S', 'K'].includes(player.position))).toBe(false);
+      expect(positions.has('K')).toBe(true);
+      expect(players.some(player => ['DE', 'DT', 'LB', 'CB', 'S'].includes(player.position))).toBe(false);
     }
   });
 

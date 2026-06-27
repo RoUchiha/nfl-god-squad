@@ -94,6 +94,7 @@ export const NFL_OFFENSE_ROSTER: RosterSlotTemplate[] = [
   { id: 'te',   position: 'TE',               label: 'Tight End',       group: 'offense', required: true },
   { id: 'flex', position: ['RB', 'WR', 'TE'], label: 'Flex',            group: 'offense', required: true },
   { id: 'ol',   position: 'OL',               label: 'O-Line',          group: 'offense', required: true },
+  { id: 'k',    position: 'K',                label: 'Kicker',          group: 'offense', required: true },
   { id: 'def',  position: 'DEF',              label: 'Defense',         group: 'defense', required: true },
 ];
 
@@ -386,6 +387,14 @@ const ERA_DATA: Record<string, { name: string; description: string }> = {
   // ── NHL Blues (STL) ───────────────────────────────────────────────────────
   'nhl-STL-2018': { name: 'Gloria!', description: "Last in the league in January, St. Louis rallies behind 'Gloria' to win the franchise's first Cup" },
 };
+
+// Resolves the human-readable era nickname (e.g. "85 Bears", "Mahomes Dynasty
+// Peak") for an eraId like `nfl-3-1984`. Returns null for generated/unnamed eras
+// so callers can fall back to the year range. Lightweight — no data imports.
+export function getEraName(eraId: string | undefined): string | null {
+  if (!eraId) return null;
+  return ERA_DATA[eraId]?.name ?? null;
+}
 
 export function generateTeamEras(team: HistoricalTeam): Era[] {
   const sportMin = SPORT_ERA_START[team.sport];

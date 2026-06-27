@@ -473,10 +473,13 @@ export default function GameContainer() {
           </div>
         )}
 
-        {/* Era + Mode row */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <EraCard era={era} team={team} isLoading={isLoadingEra} sport={sport} />
-        </div>
+        {/* Era + Mode row — hidden once the roster is full (the current pick is
+            no longer relevant; the page is now about simulating). */}
+        {!isRosterFull && (
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <EraCard era={era} team={team} isLoading={isLoadingEra} sport={sport} />
+          </div>
+        )}
 
         {/* Reroll controls */}
         {!gameplayLocked && pickPhase !== 'complete' && <RerollBar
